@@ -1,0 +1,162 @@
+# =============================================================================
+# FILE: policy.yaml (Divecha Router v2 — policy version 3)
+# =============================================================================
+# WHAT THIS FILE IS:
+# Routing profiles for the Arjun Model Gateway. In v2 a profile declares
+# CONSTRAINTS and an OBJECTIVE — never a model id. The selector resolves each
+# profile against the live OpenRouter catalog at request time, so newly
+# released models become candidates automatically. Quality floors are slices
+# of the live intelligence ranking (basic=any, medium=top 60%, high=top 25%,
+# frontier=top 8 models). Objectives: cheapest_success (min expected cost per
+# verified success), fastest (OpenRouter latency ranking + provider latency
+# sort), smartest (intelligence ranking, price-capped).
+#
+# The ONLY profiles allowed to pin a model are route_type local/direct
+# (adapter diagnostics) — validate_policy() rejects a pinned model anywhere
+# else.
+#
+# INPUT/OUTPUT: read by config.load_policy() from
+# /Users/arjundivecha/Dropbox/AAA Backup/A Working/Divecha Router/config/policy.yaml;
+# this file produces no outputs itself.
+# =============================================================================
+
+version: 3
+default_profile: auto
+
+profiles:
+  # bulk work: summaries, extraction, log scanning
+  cheap:
+    route_type: simple
+    objective: cheapest_success
+    quality_floor: basic
+    select:
+      min_context: 32000
+      max_prompt_price_per_million: 1.0
+      pool_size: 8
+      max_fallbacks: 2
+    expected_tokens: {input: 2000, output: 500}
+    default_budget_usd: 0.02
+
+  # interactive latency-sensitive calls
+  fast:
+    route_type: simple
+    objective: fastest
+    quality_floor: medium
+    select:
+      min_context: 32000
+      max_prompt_price_per_million: 3.0
+      pool_size: 8
+    expected_tokens: {input: 4000, output: 800}
+    default_budget_usd: 0.10
+
+  # coding: strong outer model + frontier advisor second opinion
+  code:
+    route_type: advisor
+    objective: cheapest_success
+    quality_floor: high
+    select:
+      require_parameters: [tools]
+      min_context: 128000
+      max_prompt_price_per_million: 5.0
+      pool_size: 8
+    expected_tokens: {input: 16000, output: 3000}
+    default_budget_usd: 0.75
+    advisor_instructions: >-
+      You are a senior staff engineer. Focus on correctness, tests, and
+      minimal diffs.
+
+  # multi-model research synthesis (fusion panel from distinct authors)
+  research:
+    route_type: fusion
+    objective: smartest
+    quality_floor: high
+    select:
+      min_context: 128000
+      max_prompt_price_per_million: 8.0
+      pool_size: 8
+    expected_tokens: {input: 24000, output: 4000}
+    default_budget_usd: 2.50
+    fusion: {panel_size: 4, max_tool_calls: 3}
+
+  # finance/quant work (no sensitivity handling — Arjun: there is no sensitive data)
+  finance:
+    route_type: fusion
+    objective: smartest
+    quality_floor: high
+    select:
+      min_context: 128000
+      max_prompt_price_per_million: 10.0
+      pool_size: 8
+    expected_tokens: {input: 24000, output: 4000}
+    default_budget_usd: 3.00
+    fusion: {panel_size: 4, max_tool_calls: 3}
+
+  # guaranteed-schema JSON output (schema is injected AND validated)
+  structured:
+    route_type: simple
+    objective: cheapest_success
+    quality_floor: medium
+    select:
+      require_parameters: [structured_outputs]
+      min_context: 32000
+      max_prompt_price_per_million: 2.0
+      pool_size: 8
+    expected_tokens: {input: 8000, output: 1500}
+    default_budget_usd: 0.10
+
+  # very large inputs, delegated to a cheap subagent worker
+  long_context:
+    route_type: subagent
+    objective: cheapest_success
+    quality_floor: medium
+    select:
+      min_context: 500000
+      max_prompt_price_per_million: 8.0
+      pool_size: 6
+    expected_tokens: {input: 160000, output: 8000}
+    default_budget_usd: 3.00
+
+  # the single smartest model available right now, whatever it is
+  frontier:
+    route_type: simple
+    objective: smartest
+    quality_floor: frontier
+    select:
+      pool_size: 4
+    expected_tokens: {input: 8000, output: 2000}
+
+  # high-scrutiny answers; external verification expected via /v1/outcomes
+  verify:
+    route_type: advisor
+    objective: smartest
+    quality_floor: high
+    select:
+      require_parameters: [tools]
+      min_context: 128000
+      max_prompt_price_per_million: 8.0
+      pool_size: 8
+    expected_tokens: {input: 12000, output: 2000}
+    require_verification: true
+    advisor_instructions: >-
+      Check the answer against deterministic gates. Do not certify success
+      without external evidence.
+
+  # local-only escape hatch (Ollama or any local OpenAI-compatible server)
+  private:
+    route_type: local
+    provider: local_openai
+    model: local-default
+    external_calls_allowed: false
+
+  # direct-provider adapter diagnostics (pinned on purpose; not routing)
+  direct_openai_smoke:
+    route_type: direct
+    provider: openai
+    model: gpt-5.5-mini
+    quality_floor: medium
+
+  direct_anthropic_smoke:
+    route_type: direct
+    provider: anthropic
+    model: claude-haiku-4-5-20251001
+    quality_floor: medium

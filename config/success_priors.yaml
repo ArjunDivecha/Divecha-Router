@@ -1,0 +1,25 @@
+# =============================================================================
+# FILE: success_priors.yaml (Divecha Router v2)
+# =============================================================================
+# WHAT THIS FILE IS:
+# OPTIONAL manual seed overrides for the router's success priors. In v2 the
+# router LEARNS P(success) per (profile, model) from the verified outcomes
+# ledger in data/telemetry.sqlite — this file is no longer required and is
+# empty by default. If you want to hand-nudge a specific model's starting
+# prior for a profile, add:
+#
+#   profiles:
+#     code:
+#       some-author/some-model: 0.85
+#
+# A seed acts as ~6 pseudo-observations; real outcomes dominate quickly.
+# The v1 hand-typed priors were removed 2026-07-10 as part of the v2 redesign
+# (dynamic selection; no hardcoded model lists).
+#
+# INPUT/OUTPUT: read by policy.manual_seeds() from
+# /Users/arjundivecha/Dropbox/AAA Backup/A Working/Divecha Router/config/success_priors.yaml;
+# this file produces no outputs itself.
+# =============================================================================
+
+version: 2
+profiles: {}

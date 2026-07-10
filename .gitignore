@@ -1,0 +1,17 @@
+# Divecha Router — git hygiene per global conventions:
+# code is committed; data, run outputs, snapshots, caches, and secrets are not.
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+data/
+runs/
+reports/
+.env
+.env.*
+*.key
+*.pem
+*credential*
+nohup.out
