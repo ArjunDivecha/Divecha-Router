@@ -35,7 +35,7 @@ from .catalog import Catalog
 from .config import CONFIG_DIR, Policy, PolicyProfile
 from .models import ChatCompletionRequest, RouteDecision
 from .selector import RoutingError, Selection, select
-from .telemetry import success_counts
+from .telemetry import latency_observations, success_counts
 
 LOCAL_PRIVACY_LEVELS = {"local_only", "private_local", "no_external"}
 MANUAL_SEEDS_PATH = CONFIG_DIR / "success_priors.yaml"
@@ -210,6 +210,7 @@ def choose_route(
         counts=counts,
         global_counts=global_counts,
         manual_seeds=manual_seeds(profile_name),
+        latency_obs=latency_observations(),
     )
 
     primary = selection.primary

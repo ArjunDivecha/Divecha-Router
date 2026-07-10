@@ -31,6 +31,7 @@ from arjun_model_gateway.selector import RoutingError
 def _no_telemetry(monkeypatch):
     monkeypatch.setattr("arjun_model_gateway.policy.success_counts", lambda: ({}, {}))
     monkeypatch.setattr("arjun_model_gateway.policy.manual_seeds", lambda name: {})
+    monkeypatch.setattr("arjun_model_gateway.policy.latency_observations", lambda: {})
 
 
 def test_policy_validates_and_a_pinned_model_is_impossible():

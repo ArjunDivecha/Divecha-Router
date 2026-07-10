@@ -49,7 +49,13 @@ from .policy import manual_seeds
 from .registry import refresh_openrouter_registry, validate_registry
 from .scanner import generate_eval_candidates, scan
 from .selector import RoutingError, select
-from .telemetry import record_outcome, success_counts, summarize, write_summary_report
+from .telemetry import (
+    latency_observations,
+    record_outcome,
+    success_counts,
+    summarize,
+    write_summary_report,
+)
 
 app = typer.Typer(help="Arjun Model Gateway CLI")
 registry_app = typer.Typer(help="Registry commands")
@@ -207,6 +213,7 @@ def _selection_for(profile_name: str, limit: int):
         counts=counts,
         global_counts=global_counts,
         manual_seeds=manual_seeds(profile_name),
+        latency_obs=latency_observations(),
     )
     selection.candidates = selection.candidates[:limit]
     return selection, profile

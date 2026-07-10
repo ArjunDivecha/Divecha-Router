@@ -93,9 +93,14 @@ panel is the top distinct-author models under the profile's price cap, the
 subagent worker is the cheapest qualifying model — all with
 `tool_choice: "required"` so the route name guarantees the behavior.
 
-Note: fusion on `/chat/completions` is beta upstream and slow (minutes).
-The gateway allows it 900s. OpenRouter recommends the Responses API for
-latency-sensitive fusion — that migration is the known next step.
+Fusion tuning (measured 2026-07-10): the OUTER orchestrator model dominates
+fusion wall-time — heavy reasoners (grok-4.5, gpt-5.6-sol) took 9–15 min,
+while a fast orchestrator runs the same frontier panel in ~40s. Fusion
+profiles therefore use `objective: fastest`, where "fastest" is learned from
+observed per-(profile, model) wall times in telemetry (OpenRouter's latency
+sort is TTFT-based and mispredicts reasoning models), with
+`max_tool_calls: 1`. The gateway still allows fusion 900s; migrating fusion
+to the Responses API (recommended by OpenRouter) is the known next step.
 
 ## Telemetry (data/telemetry.sqlite)
 

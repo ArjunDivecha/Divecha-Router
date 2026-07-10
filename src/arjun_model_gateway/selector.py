@@ -61,6 +61,12 @@ MANUAL_SEED_WEIGHT = 6.0
 ADVISOR_INPUT_FACTOR = 0.5
 JUDGE_PROMPT_FRACTION = 0.25
 
+# `fastest` ordering: models with observed wall times use their mean; models
+# never tried under this profile get an optimistic prior so they get tried —
+# a slow-observed model loses its slot and the router self-corrects.
+# (OpenRouter's latency sort is TTFT-based and mispredicts reasoning models.)
+DEFAULT_EXPECTED_SECONDS = 120.0
+
 
 class RoutingError(RuntimeError):
     """No candidate satisfies the constraints/budget. Surfaced as HTTP 400."""
@@ -92,6 +98,8 @@ class Candidate:
     route_cost_usd: float
     route_graph: list[RouteNode]
     score: float
+    expected_seconds: float = DEFAULT_EXPECTED_SECONDS
+    observed_calls: int = 0
 
 
 @dataclass
@@ -314,6 +322,7 @@ def select(
     counts: dict[tuple[str, str], tuple[int, int]] | None = None,
     global_counts: dict[str, tuple[int, int]] | None = None,
     manual_seeds: dict[str, float] | None = None,
+    latency_obs: dict[tuple[str, str], tuple[int, float]] | None = None,
 ) -> Selection:
     """Resolve a profile's constraints against the live catalog."""
     spec = profile.select
@@ -353,8 +362,22 @@ def select(
     expected_in = profile.expected_tokens.input
     expected_out = profile.expected_tokens.output
 
+    # truncate the pool by the OBJECTIVE's ordering, not always by intelligence:
+    # a fastest route must see the quick mid-pool models, not just the smartest
+    # N (which for frontier floors are all slow reasoners)
+    def observed_seconds(model: dict[str, Any]) -> float:
+        obs = (latency_obs or {}).get((profile_name, str(model.get("id"))))
+        return obs[1] / 1000.0 if obs else DEFAULT_EXPECTED_SECONDS
+
+    if profile.objective == "fastest":
+        shortlist = sorted(
+            pool, key=lambda m: (observed_seconds(m), catalog.latency_rank(str(m.get("id"))))
+        )[: max(spec.pool_size, 1)]
+    else:
+        shortlist = pool[: max(spec.pool_size, 1)]
+
     candidates: list[Candidate] = []
-    for model in pool[: max(spec.pool_size, 1)]:
+    for model in shortlist:
         model_id = str(model.get("id"))
         rank = catalog.intelligence_rank(model_id)
         rank_pct = rank / max(len(models), 1)
@@ -363,6 +386,7 @@ def select(
         p, successes, failures = posterior_p_success(
             profile_name, model_id, rank_pct, counts or {}, global_counts or {}, manual_seeds
         )
+        observed = (latency_obs or {}).get((profile_name, model_id))
         candidates.append(
             Candidate(
                 model_id=model_id,
@@ -376,6 +400,8 @@ def select(
                 route_cost_usd=route_cost,
                 route_graph=graph,
                 score=route_cost / max(p, 0.01),
+                expected_seconds=(observed[1] / 1000.0) if observed else DEFAULT_EXPECTED_SECONDS,
+                observed_calls=observed[0] if observed else 0,
             )
         )
 
@@ -392,7 +418,7 @@ def select(
         candidates = affordable
 
     if profile.objective == "fastest":
-        candidates.sort(key=lambda c: (c.latency_rank, c.score))
+        candidates.sort(key=lambda c: (c.expected_seconds, c.latency_rank, c.score))
     elif profile.objective == "smartest":
         candidates.sort(key=lambda c: (c.intelligence_rank, c.score))
     else:  # cheapest_success

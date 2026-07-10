@@ -66,10 +66,14 @@ profiles:
       You are a senior staff engineer. Focus on correctness, tests, and
       minimal diffs.
 
-  # multi-model research synthesis (fusion panel from distinct authors)
+  # multi-model research synthesis (fusion panel from distinct authors).
+  # objective is fastest ON PURPOSE: the outer model only orchestrates the
+  # server-side fusion tool — quality comes from the panel + judge. Measured
+  # 2026-07-10: slow-reasoning outers (grok-4.5, gpt-5.6-sol) made the route
+  # take 9-15 minutes; low-latency outers finish the same panel in ~1.5-3 min.
   research:
     route_type: fusion
-    objective: smartest
+    objective: fastest
     quality_floor: high
     select:
       min_context: 128000
@@ -77,12 +81,13 @@ profiles:
       pool_size: 8
     expected_tokens: {input: 24000, output: 4000}
     default_budget_usd: 2.50
-    fusion: {panel_size: 4, max_tool_calls: 3}
+    fusion: {panel_size: 4, max_tool_calls: 1}
 
-  # finance/quant work (no sensitivity handling — Arjun: there is no sensitive data)
+  # finance/quant work (no sensitivity handling — Arjun: there is no sensitive
+  # data). fastest outer for the same reason as research.
   finance:
     route_type: fusion
-    objective: smartest
+    objective: fastest
     quality_floor: high
     select:
       min_context: 128000
@@ -90,7 +95,7 @@ profiles:
       pool_size: 8
     expected_tokens: {input: 24000, output: 4000}
     default_budget_usd: 3.00
-    fusion: {panel_size: 4, max_tool_calls: 3}
+    fusion: {panel_size: 4, max_tool_calls: 1}
 
   # guaranteed-schema JSON output (schema is injected AND validated)
   structured:

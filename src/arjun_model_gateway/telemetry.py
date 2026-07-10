@@ -233,6 +233,26 @@ def success_counts(
     )
 
 
+def latency_observations(
+    path: Path = DEFAULT_TELEMETRY_PATH,
+) -> dict[tuple[str, str], tuple[int, float]]:
+    """Observed (count, mean wall-time ms) per (profile, model) for successful
+    non-mock calls. Feeds the selector's `fastest` ordering — OpenRouter's
+    latency sort is TTFT-based and badly mispredicts end-to-end time for
+    reasoning models orchestrating server tools."""
+    conn = connect(path)
+    rows = conn.execute(
+        """
+        SELECT routing_profile, chosen_model, COUNT(*), AVG(latency_ms)
+        FROM model_calls
+        WHERE chosen_provider != 'mock' AND error_type IS NULL AND latency_ms > 0
+        GROUP BY routing_profile, chosen_model
+        """
+    ).fetchall()
+    conn.close()
+    return {(profile, model): (count, avg) for profile, model, count, avg in rows}
+
+
 # -- reporting ---------------------------------------------------------------
 
 NON_MOCK = "chosen_provider != 'mock'"

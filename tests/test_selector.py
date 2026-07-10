@@ -102,6 +102,17 @@ def test_fastest_objective_orders_by_latency_rank(fake_catalog):
     assert selection.primary.model_id == "delta/cheapest-5"  # fastest fake
 
 
+def test_fastest_objective_learns_from_observed_wall_time(fake_catalog):
+    # delta wins the catalog latency sort, but we've MEASURED it slow for this
+    # profile (e.g. slow reasoning orchestrator) -> unobserved models win
+    profile = simple_profile(objective="fastest")
+    slow = {("fast", "delta/cheapest-5"): (3, 600_000.0)}  # 3 calls, 600s avg
+    selection = select("fast", profile, fake_catalog, latency_obs=slow)
+    assert selection.primary.model_id != "delta/cheapest-5"
+    loser = next(c for c in selection.candidates if c.model_id == "delta/cheapest-5")
+    assert loser.expected_seconds == 600.0 and loser.observed_calls == 3
+
+
 def test_smartest_objective_orders_by_intelligence(fake_catalog):
     profile = simple_profile(objective="smartest")
     selection = select("frontier", profile, fake_catalog)
