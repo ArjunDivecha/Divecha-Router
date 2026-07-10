@@ -134,6 +134,7 @@ def passes_filters(
     min_context: int,
     max_prompt_price_per_million: float | None,
     include_free: bool,
+    reasoning_off: bool = False,
 ) -> bool:
     model_id = str(model.get("id") or "")
     if model_id.startswith("openrouter/"):
@@ -144,6 +145,8 @@ def passes_filters(
         return False
     if not include_free and is_free_variant(model):
         return False
+    if reasoning_off and (model.get("reasoning") or {}).get("mandatory"):
+        return False  # profile demands no hidden reasoning; this model can't comply
     if min_context and int(model.get("context_length") or 0) < min_context:
         return False
     supported = set(model.get("supported_parameters") or [])
@@ -344,6 +347,7 @@ def select(
             min_context=min_context,
             max_prompt_price_per_million=spec.max_prompt_price_per_million,
             include_free=spec.include_free,
+            reasoning_off=profile.reasoning == "off",
         )
     ]
     pool = [

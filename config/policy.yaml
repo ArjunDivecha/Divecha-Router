@@ -37,6 +37,7 @@ profiles:
       max_fallbacks: 2
     expected_tokens: {input: 2000, output: 500}
     default_budget_usd: 0.02
+    reasoning: "off"   # bulk work: no hidden thinking eating small token budgets
 
   # interactive latency-sensitive calls
   fast:
@@ -49,6 +50,7 @@ profiles:
       pool_size: 8
     expected_tokens: {input: 4000, output: 800}
     default_budget_usd: 0.10
+    reasoning: "off"   # bulk work: no hidden thinking eating small token budgets
 
   # coding: strong outer model + frontier advisor second opinion
   code:
@@ -109,6 +111,7 @@ profiles:
       pool_size: 8
     expected_tokens: {input: 8000, output: 1500}
     default_budget_usd: 0.10
+    reasoning: "off"   # bulk work: no hidden thinking eating small token budgets
 
   # very large inputs, delegated to a cheap subagent worker
   long_context:

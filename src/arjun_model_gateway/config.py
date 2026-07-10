@@ -39,6 +39,7 @@ DEFAULT_TELEMETRY_PATH = DATA_DIR / "telemetry.sqlite"
 RouteType = Literal["simple", "advisor", "fusion", "subagent", "local", "direct"]
 Objective = Literal["cheapest_success", "fastest", "smartest"]
 QualityFloor = Literal["basic", "medium", "high", "frontier"]
+ReasoningMode = Literal["provider_default", "off", "low", "medium", "high"]
 
 
 class SelectSpec(BaseModel):
@@ -85,6 +86,9 @@ class PolicyProfile(BaseModel):
     subagent_instructions: str | None = None
     require_verification: bool = False
     external_calls_allowed: bool = True
+    # bulk profiles set "off": hidden reasoning otherwise eats small max_tokens
+    # budgets and returns empty content (observed live with deepseek-v4-flash)
+    reasoning: ReasoningMode = "provider_default"
 
 
 class Policy(BaseModel):

@@ -75,6 +75,7 @@ class RouteDecision(BaseModel):
     provider_sort: str | None = None  # e.g. "latency" -> OpenRouter provider routing
     timeout_seconds: float = 300.0  # upstream HTTP timeout; server-tool routes get longer
     use_responses_api: bool = False  # fusion is materially faster on /responses
+    reasoning: str | None = None  # "off" | "low" | "medium" | "high" | None=provider default
     response_format: dict[str, Any] | None = None  # injected structured-output schema
     estimated_route_cost_usd: float | None = None
     budget_usd: float | None = None

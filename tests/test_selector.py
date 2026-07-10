@@ -142,6 +142,21 @@ def test_fusion_route_graph_prices_panel_and_judge(fake_catalog):
     assert selection.primary.route_cost_usd > outer_cost
 
 
+def test_reasoning_off_excludes_mandatory_reasoning_models():
+    from tests.conftest import FAKE_LATENCY_ORDER, FAKE_MODELS, FakeCatalog, make_model
+
+    thinker = make_model("theta/mandatory-thinker", 0.01, 0.03)
+    thinker["reasoning"] = {"mandatory": True}
+    catalog = FakeCatalog([*FAKE_MODELS, thinker], FAKE_LATENCY_ORDER)
+    profile = simple_profile(reasoning="off")
+    selection = select("cheap", profile, catalog)
+    ids = [c.model_id for c in selection.candidates]
+    assert "theta/mandatory-thinker" not in ids
+    # and without the constraint the ultra-cheap thinker would win on cost
+    relaxed = select("cheap", simple_profile(), catalog)
+    assert relaxed.primary.model_id == "theta/mandatory-thinker"
+
+
 def test_subagent_route_picks_cheapest_worker(fake_catalog):
     profile = PolicyProfile.model_validate(
         {

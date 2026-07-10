@@ -130,6 +130,10 @@ class OpenAICompatibleAdapter(ProviderAdapter):
             payload["usage"] = {"include": True}  # exact cost accounting per response
             if decision.provider_sort:
                 payload["provider"] = {"sort": decision.provider_sort}
+            if decision.reasoning == "off":
+                payload["reasoning"] = {"enabled": False}
+            elif decision.reasoning in ("low", "medium", "high"):
+                payload["reasoning"] = {"effort": decision.reasoning}
         return payload
 
     def chat(self, request: ChatCompletionRequest, decision: RouteDecision) -> AdapterResponse:
@@ -247,6 +251,10 @@ def responses_payload(request: ChatCompletionRequest, decision: RouteDecision) -
         payload["max_output_tokens"] = request.max_tokens
     if request.temperature is not None:
         payload["temperature"] = request.temperature
+    if decision.reasoning == "off":
+        payload["reasoning"] = {"enabled": False}
+    elif decision.reasoning in ("low", "medium", "high"):
+        payload["reasoning"] = {"effort": decision.reasoning}
     payload["usage"] = {"include": True}
     return payload
 
