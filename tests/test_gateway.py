@@ -99,6 +99,34 @@ def test_fallback_executes_after_primary_adapter_error(monkeypatch):
     assert records[0].fallback_count == 1
 
 
+def test_cumulative_budget_blocks_fallback_after_failed_attempt(monkeypatch):
+    import pytest
+
+    from arjun_model_gateway.adapters import AdapterError
+
+    monkeypatch.setattr("arjun_model_gateway.gateway.write_record", lambda record: None)
+    monkeypatch.setattr("arjun_model_gateway.gateway.record_outcome", lambda *a, **k: None)
+    decision = mock_decision(
+        provider="missing_provider",
+        model="pricey/model",
+        budget_usd=0.0015,
+        estimated_route_cost_usd=0.001,
+        fallback=[{"provider": "mock", "model": "fallback-model"}],
+        candidates=[
+            {"model": "pricey/model", "estimated_route_cost_usd": 0.001},
+            {"model": "fallback-model", "estimated_route_cost_usd": 0.001},
+        ],
+    )
+    monkeypatch.setattr(
+        "arjun_model_gateway.gateway.choose_route", lambda request, policy: decision
+    )
+    request = ChatCompletionRequest(messages=[ChatMessage(role="user", content="hello")])
+    # primary fails (~$0.001 attempted); fallback (~$0.001) would exceed $0.0015
+    with pytest.raises(AdapterError) as exc:
+        handle_chat(request)
+    assert exc.value.error_type == "cumulative_budget_exceeded"
+
+
 def test_budget_rejection_returns_400(monkeypatch):
     def raise_budget(request, policy):
         raise RoutingError("budget_exceeded", "estimated $0.42 over the $0.01 budget")
@@ -190,6 +218,47 @@ def test_streaming_endpoint_returns_sse(monkeypatch):
     assert response.status_code == 200
     assert "data:" in response.text
     assert "[DONE]" in response.text
+
+
+def test_responses_api_translation_round_trip():
+    from arjun_model_gateway.adapters import responses_output_text, responses_payload
+
+    decision = mock_decision(
+        provider="openrouter",
+        model="fast/orchestrator",
+        use_responses_api=True,
+        tool_choice="required",
+        tools=[{"type": "openrouter:fusion", "parameters": {"max_tool_calls": 1}}],
+    )
+    request = ChatCompletionRequest(
+        messages=[
+            ChatMessage(role="system", content="be brief"),
+            ChatMessage(role="user", content="hello"),
+        ],
+        max_tokens=256,
+    )
+    payload = responses_payload(request, decision)
+    assert payload["model"] == "fast/orchestrator"
+    assert payload["input"][0] == {"role": "system", "content": "be brief"}
+    assert payload["tools"][0]["type"] == "openrouter:fusion"
+    assert payload["tool_choice"] == "required"
+    assert payload["max_output_tokens"] == 256
+
+    raw = {
+        "id": "resp_1",
+        "output": [
+            {"type": "reasoning", "content": []},
+            {
+                "type": "message",
+                "content": [
+                    {"type": "output_text", "text": "final "},
+                    {"type": "output_text", "text": "answer"},
+                ],
+            },
+        ],
+        "usage": {"input_tokens": 10, "output_tokens": 5, "cost": 0.001},
+    }
+    assert responses_output_text(raw) == "final answer"
 
 
 def test_models_endpoint_lists_profiles():

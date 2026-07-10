@@ -268,6 +268,9 @@ def choose_route(
         tool_choice=request.tool_choice or tool_choice,
         provider_sort="latency" if objective_override == "fastest" else None,
         timeout_seconds=timeout_seconds,
+        # OpenRouter: fusion on chat/completions is beta and slower; /responses
+        # is the recommended path for it
+        use_responses_api=profile.route_type == "fusion" and profile.provider == "openrouter",
         response_format=response_format,
         estimated_route_cost_usd=primary.route_cost_usd,
         budget_usd=selection.budget_usd,

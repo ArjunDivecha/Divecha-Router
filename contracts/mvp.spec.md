@@ -101,3 +101,12 @@ The MVP is useful if a local OpenAI-compatible endpoint can accept a request, ro
   real OpenRouter (runs/2026-07-10_v2_live_test): 35 unit tests + 8/8 live
   end-to-end checks pass. Known follow-up: fusion via Responses API (beta and
   slow on chat completions upstream).
+- 2026-07-10 (later): DEPLOYED as macOS LaunchAgent (com.arjundivecha.amg,
+  KeepAlive, RunAtLoad; logs in runs/). Deleted legacy v1 files
+  (model_intel.py, test_model_intel.py, model_intel_snapshot.json) with
+  Arjun's permission. Budget now enforced cumulatively across fallback
+  attempts (cumulative_budget_exceeded). Fusion migrated to OpenRouter's
+  Responses API with chat-completions-shape normalization — verified live
+  through the deployed service: synthesized frontier-panel answer in 291s,
+  $1.51 (the chat-completions beta path returned unsynthesized panel dumps).
+  36 tests pass.

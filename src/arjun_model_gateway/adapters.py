@@ -133,6 +133,8 @@ class OpenAICompatibleAdapter(ProviderAdapter):
         return payload
 
     def chat(self, request: ChatCompletionRequest, decision: RouteDecision) -> AdapterResponse:
+        if decision.use_responses_api and self.provider == "openrouter":
+            return self._responses_chat(request, decision)
         headers = self._headers()
         payload = self._payload(request, decision)
         payload["stream"] = False
@@ -160,6 +162,51 @@ class OpenAICompatibleAdapter(ProviderAdapter):
             output_text=_text(raw),
         )
 
+    def _responses_chat(self, request: ChatCompletionRequest, decision: RouteDecision) -> AdapterResponse:
+        """Execute via OpenRouter's /responses endpoint (fusion is faster there)
+        and normalize back to the chat-completions shape callers expect."""
+        headers = self._headers()
+        payload = responses_payload(request, decision)
+        try:
+            with httpx.Client(timeout=decision.timeout_seconds) as client:
+                response = client.post(f"{self.base_url}/responses", json=payload, headers=headers)
+                response.raise_for_status()
+                raw = response.json()
+        except httpx.HTTPStatusError as exc:
+            raise AdapterError(
+                self.provider, f"http_{exc.response.status_code}", exc.response.text
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise AdapterError(self.provider, "network_error", str(exc)) from exc
+        text = responses_output_text(raw)
+        usage = raw.get("usage") or {}
+        prompt_tokens = int(usage.get("input_tokens") or 0)
+        completion_tokens = int(usage.get("output_tokens") or 0)
+        cost = usage.get("cost")
+        compatible = {
+            "id": raw.get("id"),
+            "object": "chat.completion",
+            "model": raw.get("model") or decision.model,
+            "choices": [
+                {"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}
+            ],
+            "usage": {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                **({"cost": cost} if cost is not None else {}),
+            },
+            "via": "openrouter_responses_api",
+        }
+        return AdapterResponse(
+            provider=self.provider,
+            model=_resolved_model(raw, decision.model),
+            raw=compatible,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_cost_usd=float(cost) if cost is not None else None,
+            output_text=text,
+        )
+
     def stream_chat(
         self, request: ChatCompletionRequest, decision: RouteDecision
     ) -> Iterator[str]:
@@ -180,6 +227,42 @@ class OpenAICompatibleAdapter(ProviderAdapter):
                             yield line
         except httpx.HTTPError as exc:
             raise AdapterError(self.provider, "network_error", str(exc)) from exc
+
+
+def responses_payload(request: ChatCompletionRequest, decision: RouteDecision) -> dict[str, Any]:
+    """Translate an OpenAI chat-completions request into a /responses request."""
+    payload: dict[str, Any] = {
+        "model": decision.model,
+        "input": [
+            {"role": message.role, "content": str(message.content)}
+            for message in request.messages
+        ],
+    }
+    merged_tools = [*(request.tools or []), *decision.tools]
+    if merged_tools:
+        payload["tools"] = merged_tools
+    if decision.tool_choice is not None:
+        payload["tool_choice"] = decision.tool_choice
+    if request.max_tokens is not None:
+        payload["max_output_tokens"] = request.max_tokens
+    if request.temperature is not None:
+        payload["temperature"] = request.temperature
+    payload["usage"] = {"include": True}
+    return payload
+
+
+def responses_output_text(raw: dict[str, Any]) -> str:
+    """Pull the final assistant text out of a /responses output array."""
+    if isinstance(raw.get("output_text"), str) and raw["output_text"]:
+        return raw["output_text"]
+    parts: list[str] = []
+    for item in raw.get("output") or []:
+        if item.get("type") != "message":
+            continue
+        for piece in item.get("content") or []:
+            if piece.get("type") == "output_text" and isinstance(piece.get("text"), str):
+                parts.append(piece["text"])
+    return "".join(parts)
 
 
 def parse_stream_stats(lines: list[str]) -> dict[str, Any]:

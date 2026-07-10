@@ -201,10 +201,35 @@ def handle_chat(request: ChatCompletionRequest, *, force_mock: bool = False) -> 
     fallback_count = 0
     last_error: AdapterError | None = None
     outcome_records: list[dict[str, Any]] = []
+    # budget is CUMULATIVE across fallback attempts: a failed attempt may still
+    # have billed upstream (e.g. a timeout after generation started), so each
+    # attempt's estimate counts against the budget before the next one runs
+    estimate_by_model = {
+        str(c.get("model")): float(c.get("estimated_route_cost_usd") or 0)
+        for c in decision.candidates
+    }
+    spent_estimate = 0.0
     try:
         for fallback_count, candidate in enumerate(candidates):
             provider_used = str(candidate["provider"])
             model_used = str(candidate["model"])
+            attempt_estimate = estimate_by_model.get(
+                model_used, decision.estimated_route_cost_usd or 0.0
+            )
+            if (
+                decision.budget_usd is not None
+                and fallback_count > 0
+                and spent_estimate + attempt_estimate > decision.budget_usd
+            ):
+                last_error = AdapterError(
+                    provider_used,
+                    "cumulative_budget_exceeded",
+                    f"fallback {model_used} (~${attempt_estimate:.4f}) would take the "
+                    f"attempt total past the ${decision.budget_usd:.4f} budget "
+                    f"(~${spent_estimate:.4f} already attempted)",
+                )
+                error_type = last_error.error_type
+                break
             candidate_decision = decision.model_copy(
                 update={"provider": provider_used, "model": model_used}
             )
@@ -225,6 +250,7 @@ def handle_chat(request: ChatCompletionRequest, *, force_mock: bool = False) -> 
                 error_type = None
                 break
             except AdapterError as exc:
+                spent_estimate += attempt_estimate
                 last_error = exc
                 error_type = exc.error_type
                 if not request.metadata.fallback_permission:
@@ -354,8 +380,9 @@ def stream_chat_response(request: ChatCompletionRequest) -> Iterator[str]:
     policy = load_policy()
     decision = choose_route(request, policy)
     adapter = adapter_for(decision.provider)
-    if not adapter.supports_streaming or not candidate_allowed(decision):
-        # providers without streaming (anthropic direct, mock) get a synthetic stream
+    if not adapter.supports_streaming or not candidate_allowed(decision) or decision.use_responses_api:
+        # providers without streaming (anthropic direct, mock) and Responses-API
+        # routes (fusion) get a synthetic stream over the completed response
         yield from synthetic_stream(request)
         return
     started = time.perf_counter()

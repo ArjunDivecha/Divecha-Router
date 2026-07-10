@@ -21,6 +21,32 @@ by **expected cost per verified success**, where P(success) is a Beta
 posterior learned from the **outcomes ledger**. New models (Sol, Terra,
 Luna, ...) become candidates automatically on the next catalog refresh.
 
+## Deployment (how this actually runs)
+
+The gateway is DEPLOYED as a macOS LaunchAgent — always on, starts at login,
+auto-restarts on crash:
+
+- plist: `/Users/arjundivecha/Library/LaunchAgents/com.arjundivecha.amg.plist`
+- logs: `runs/launchd.out.log` / `runs/launchd.err.log` in this project
+- restart: `launchctl kickstart -k gui/$(id -u)/com.arjundivecha.amg`
+- stop:    `launchctl bootout gui/$(id -u)/com.arjundivecha.amg`
+- after `git pull` or code edits: kickstart to pick up the new code
+
+Any repo's code uses it with a stock OpenAI client — no OpenRouter/Anthropic
+SDKs, no keys in application code (keys live only in the gateway):
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://127.0.0.1:8765/v1", api_key="local")
+reply = client.chat.completions.create(
+    model="cheap",  # a routing profile, or "auto" — never a model name
+    messages=[{"role": "user", "content": "Summarize this log ..."}],
+    extra_body={"metadata": {"repo": "News", "script": "daily.py",
+                             "call_site_id": "daily.summarize"}},
+)
+```
+
 ## Quick Start
 
 ```bash
@@ -94,13 +120,18 @@ subagent worker is the cheapest qualifying model — all with
 `tool_choice: "required"` so the route name guarantees the behavior.
 
 Fusion tuning (measured 2026-07-10): the OUTER orchestrator model dominates
-fusion wall-time — heavy reasoners (grok-4.5, gpt-5.6-sol) took 9–15 min,
-while a fast orchestrator runs the same frontier panel in ~40s. Fusion
-profiles therefore use `objective: fastest`, where "fastest" is learned from
-observed per-(profile, model) wall times in telemetry (OpenRouter's latency
-sort is TTFT-based and mispredicts reasoning models), with
-`max_tool_calls: 1`. The gateway still allows fusion 900s; migrating fusion
-to the Responses API (recommended by OpenRouter) is the known next step.
+fusion wall-time — heavy reasoners (grok-4.5, gpt-5.6-sol) took 9–15 min as
+orchestrators, while a fast orchestrator runs the same frontier panel in
+~40s–5min. Fusion profiles use `objective: fastest`, where "fastest" is
+learned from observed per-(profile, model) wall times in telemetry
+(OpenRouter's latency sort is TTFT-based and mispredicts reasoning models),
+with `max_tool_calls: 1`. Fusion executes via OpenRouter's **Responses API**
+(their recommended path; the gateway translates to/from chat-completions
+shape, so callers see no difference) — measured live: full frontier panel
+with web search + Fable judge + synthesized final answer in ~5 min, $1.51,
+vs the chat-completions beta path which returned unsynthesized panel dumps.
+Budget cap ($2.50 research / $3.00 finance) and the 900s timeout apply, and
+the budget is cumulative across fallback attempts.
 
 ## Telemetry (data/telemetry.sqlite)
 
