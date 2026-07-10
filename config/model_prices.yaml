@@ -1,11 +1,27 @@
-version: 1
-prices:
-  openai:gpt-4.1-mini:
-    input_per_million_usd: 0.40
-    output_per_million_usd: 1.60
-    source: https://developers.openai.com/api/docs/models/gpt-4.1-mini
-  anthropic:claude-haiku-4-5-20251001:
-    input_per_million_usd: 1.00
-    output_per_million_usd: 5.00
-    source: https://docs.anthropic.com/en/docs/about-claude/models/overview
+# =============================================================================
+# FILE: model_prices.yaml (Divecha Router v2)
+# =============================================================================
+# WHAT THIS FILE IS:
+# OPTIONAL manual price overrides for cost estimation. EMPTY BY DEFAULT in
+# v2 — no hand-typed model prices live in this repo. Cost accounting comes
+# from, in order:
+#   1. exact provider-billed cost in the response (OpenRouter usage.include)
+#   2. the live OpenRouter registry (data/registry.json), including a
+#      best-effort "{provider}/{model}" mapping for direct-provider calls
+#   3. this file, ONLY if you deliberately add an override
+# A genuinely unknown cost stays NULL and renders as an em dash — never a
+# stale or invented number.
+#
+# Format, if you ever need an override:
+#   prices:
+#     openai:some-model-id:
+#       input_per_million_usd: 1.00
+#       output_per_million_usd: 4.00
+#
+# INPUT/OUTPUT: read by pricing.load_prices() from
+# /Users/arjundivecha/Dropbox/AAA Backup/A Working/Divecha Router/config/model_prices.yaml;
+# this file produces no outputs itself.
+# =============================================================================
 
+version: 2
+prices: {}

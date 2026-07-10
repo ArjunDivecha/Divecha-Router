@@ -255,6 +255,7 @@ class AnthropicAdapter(ProviderAdapter):
         )
         compatible = {
             "id": raw.get("id"),
+            "model": raw.get("model") or decision.model,
             "choices": [{"message": {"role": "assistant", "content": text}}],
             "usage": {"prompt_tokens": input_tokens, "completion_tokens": output_tokens},
             "provider_raw": raw,

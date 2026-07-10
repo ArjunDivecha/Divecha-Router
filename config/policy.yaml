@@ -11,9 +11,10 @@
 # verified success), fastest (OpenRouter latency ranking + provider latency
 # sort), smartest (intelligence ranking, price-capped).
 #
-# The ONLY profiles allowed to pin a model are route_type local/direct
-# (adapter diagnostics) — validate_policy() rejects a pinned model anywhere
-# else.
+# NOTHING in this file may name a model — the PolicyProfile schema forbids a
+# `model:` key outright (extra=forbid). Marketplace routes select from the
+# live OpenRouter catalog; local/direct routes resolve from the provider's
+# own live models API at decision time.
 #
 # INPUT/OUTPUT: read by config.load_policy() from
 # /Users/arjundivecha/Dropbox/AAA Backup/A Working/Divecha Router/config/policy.yaml;
@@ -141,22 +142,21 @@ profiles:
       Check the answer against deterministic gates. Do not certify success
       without external evidence.
 
-  # local-only escape hatch (Ollama or any local OpenAI-compatible server)
+  # local-only escape hatch — model resolved live from the local server's
+  # /v1/models (Ollama or any OpenAI-compatible server)
   private:
     route_type: local
     provider: local_openai
-    model: local-default
     external_calls_allowed: false
 
-  # direct-provider adapter diagnostics (pinned on purpose; not routing)
+  # direct-provider adapter diagnostics — models resolved live from each
+  # provider's own models API (newest small tier); nothing is pinned
   direct_openai_smoke:
     route_type: direct
     provider: openai
-    model: gpt-5.5-mini
     quality_floor: medium
 
   direct_anthropic_smoke:
     route_type: direct
     provider: anthropic
-    model: claude-haiku-4-5-20251001
     quality_floor: medium

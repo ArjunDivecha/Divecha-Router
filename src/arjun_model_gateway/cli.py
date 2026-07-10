@@ -196,7 +196,9 @@ def _selection_for(profile_name: str, limit: int):
         raise typer.BadParameter(f"unknown profile {profile_name!r}")
     profile = policy.profiles[profile_name]
     if profile.route_type in ("local", "direct"):
-        return None, profile
+        from .provider_models import resolve_direct_model
+
+        return None, (profile, resolve_direct_model(profile.provider))
     counts, global_counts = success_counts()
     selection = select(
         profile_name,
@@ -229,14 +231,21 @@ def intel_refresh() -> None:
 
 
 @intel_app.command("choose")
-def intel_choose(profile: str = "fast") -> None:
+def intel_choose(profile: str = "fast", load_env: bool = False) -> None:
+    if load_env:
+        load_provider_keys()
     try:
         selection, profile_obj = _selection_for(profile, limit=3)
     except RoutingError as exc:
         typer.echo(json.dumps({"ok": False, "code": exc.code, "message": str(exc)}, indent=2), err=True)
         raise typer.Exit(1) from exc
     if selection is None:
-        typer.echo(json.dumps({"profile": profile, "model": profile_obj.model, "dynamic": False}, indent=2))
+        _, resolved = profile_obj
+        typer.echo(
+            json.dumps(
+                {"profile": profile, "model": resolved, "source": "provider_models_api"}, indent=2
+            )
+        )
         return
     primary = selection.primary
     typer.echo(
@@ -263,14 +272,21 @@ def intel_choose(profile: str = "fast") -> None:
 
 
 @intel_app.command("scorecard")
-def intel_scorecard(profile: str = "code", limit: int = 10) -> None:
+def intel_scorecard(profile: str = "code", limit: int = 10, load_env: bool = False) -> None:
+    if load_env:
+        load_provider_keys()
     try:
         selection, profile_obj = _selection_for(profile, limit=limit)
     except RoutingError as exc:
         typer.echo(json.dumps({"ok": False, "code": exc.code, "message": str(exc)}, indent=2), err=True)
         raise typer.Exit(1) from exc
     if selection is None:
-        typer.echo(json.dumps({"profile": profile, "model": profile_obj.model, "dynamic": False}, indent=2))
+        _, resolved = profile_obj
+        typer.echo(
+            json.dumps(
+                {"profile": profile, "model": resolved, "source": "provider_models_api"}, indent=2
+            )
+        )
         return
     typer.echo(
         json.dumps(

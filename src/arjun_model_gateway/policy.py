@@ -166,14 +166,18 @@ def choose_route(
 
     reasons = [f"profile={profile_name}", f"route_type={profile.route_type}"]
 
-    # pinned routes (local diagnostics / direct provider smokes) skip selection
+    # local/direct routes skip catalog selection but still resolve their
+    # model DYNAMICALLY from the provider's own live models API
     if profile.route_type in ("local", "direct"):
-        reasons.append(f"pinned={profile.model}")
+        from .provider_models import resolve_direct_model
+
+        model = resolve_direct_model(profile.provider)
+        reasons.append(f"provider_models_api={profile.provider}:{model}")
         return RouteDecision(
             routing_profile=profile_name,
             route_type=profile.route_type,
             provider=profile.provider,
-            model=profile.model or "local-default",
+            model=model,
             reasons=reasons,
             privacy_level=privacy,
             external_calls_allowed=external_allowed,

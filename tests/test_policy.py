@@ -33,12 +33,15 @@ def _no_telemetry(monkeypatch):
     monkeypatch.setattr("arjun_model_gateway.policy.manual_seeds", lambda name: {})
 
 
-def test_policy_validates_and_has_no_hardcoded_marketplace_models():
+def test_policy_validates_and_a_pinned_model_is_impossible():
     policy = validate_policy()
     assert "structured" in policy.profiles
-    for name, profile in policy.profiles.items():
-        if profile.route_type not in ("local", "direct"):
-            assert profile.model is None, f"{name} pins a model"
+    # the schema itself forbids a `model` key — pinning cannot come back quietly
+    from arjun_model_gateway.config import PolicyProfile
+
+    with pytest.raises(Exception):
+        PolicyProfile.model_validate({"route_type": "simple", "model": "some/model"})
+    assert not hasattr(policy.profiles["cheap"], "model")
 
 
 def test_auto_routes_coding_to_code_profile(fake_catalog):
@@ -119,7 +122,10 @@ def test_unknown_profile_rejected(fake_catalog):
     assert exc.value.code == "unknown_profile"
 
 
-def test_local_privacy_forces_private_profile(fake_catalog):
+def test_local_privacy_forces_private_profile(fake_catalog, monkeypatch):
+    monkeypatch.setattr(
+        "arjun_model_gateway.provider_models.resolve_direct_model", lambda provider: "local-served"
+    )
     policy = validate_policy()
     request = ChatCompletionRequest(
         messages=[ChatMessage(role="user", content="hello")],
@@ -127,4 +133,5 @@ def test_local_privacy_forces_private_profile(fake_catalog):
     )
     decision = choose_route(request, policy, catalog=fake_catalog)
     assert decision.routing_profile == "private"
+    assert decision.model == "local-served"  # resolved live, never pinned
     assert decision.external_calls_allowed is False

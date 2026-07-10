@@ -24,9 +24,11 @@ def estimate_cost(
     completion_tokens: int,
     path: Path = DEFAULT_PRICE_PATH,
 ) -> tuple[float | None, float | None, float | None, str | None]:
-    if provider == "openrouter":
+    # try the live OpenRouter registry first; for direct providers attempt the
+    # "{provider}/{model}" marketplace id as a best-effort mapping
+    for candidate in ([model] if provider == "openrouter" else [f"{provider}/{model}", model]):
         input_cost, output_cost, total_cost = estimate_openrouter_registry_cost(
-            model, prompt_tokens, completion_tokens
+            candidate, prompt_tokens, completion_tokens
         )
         if total_cost is not None:
             return input_cost, output_cost, total_cost, "openrouter_registry"

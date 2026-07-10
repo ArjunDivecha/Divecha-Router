@@ -41,6 +41,12 @@ The **catalog** layer fetches the live OpenRouter Models API twice per TTL
 - `GET /api/v1/models?sort=latency-low-to-high` → every model gets a
   **latency rank**.
 
+**Nothing in this repo names a model.** The `PolicyProfile` schema forbids a
+`model:` key outright (`extra="forbid"`). Even the local/direct diagnostic
+routes resolve their model at decision time from the provider's own live
+models API (`provider_models.py`: newest small-tier model from
+api.openai.com / api.anthropic.com / the local server's `/v1/models`).
+
 The **selector** turns a profile (pure constraints, zero model IDs) into a
 ranked candidate list:
 

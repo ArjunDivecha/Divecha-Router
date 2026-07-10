@@ -66,6 +66,13 @@ class FusionSpec(BaseModel):
 
 
 class PolicyProfile(BaseModel):
+    """NO `model` FIELD, BY DESIGN. Nothing in policy may name a model —
+    marketplace routes select from the live OpenRouter catalog and
+    local/direct routes resolve from the provider's own live models API.
+    extra="forbid" makes a pinned `model:` key a validation error."""
+
+    model_config = {"extra": "forbid", "protected_namespaces": ()}
+
     route_type: RouteType = "simple"
     provider: str = "openrouter"
     objective: Objective = "cheapest_success"
@@ -77,8 +84,6 @@ class PolicyProfile(BaseModel):
     advisor_instructions: str | None = None
     subagent_instructions: str | None = None
     require_verification: bool = False
-    # only meaningful for route_type local/direct (pinned diagnostics):
-    model: str | None = None
     external_calls_allowed: bool = True
 
 
@@ -102,12 +107,4 @@ def validate_policy(path: Path = DEFAULT_POLICY_PATH) -> Policy:
     policy = load_policy(path)
     if policy.default_profile != "auto" and policy.default_profile not in policy.profiles:
         raise ValueError(f"default_profile {policy.default_profile!r} is not defined")
-    for name, profile in policy.profiles.items():
-        if profile.route_type in ("local", "direct") and not profile.model:
-            raise ValueError(f"profile {name!r} is {profile.route_type} and must pin a model")
-        if profile.route_type not in ("local", "direct") and profile.model:
-            raise ValueError(
-                f"profile {name!r} hardcodes model {profile.model!r}; "
-                "marketplace profiles must select dynamically"
-            )
     return policy
