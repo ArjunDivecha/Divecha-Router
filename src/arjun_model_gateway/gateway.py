@@ -259,6 +259,9 @@ def handle_chat(request: ChatCompletionRequest, *, force_mock: bool = False) -> 
             raise last_error or AdapterError(provider_used, "no_response", "no route produced a response")
         outcome_records = auto_outcomes(request, decision, response.output_text, response.raw)
         schedule_generation_stats(decision, provider_used, response.raw)
+        if isinstance(response.raw, dict):
+            # callers post verification to /v1/outcomes keyed by this id
+            response.raw["amg_request_id"] = decision.request_id
         return response.raw
     except AdapterError as exc:
         error_type = exc.error_type

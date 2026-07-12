@@ -67,6 +67,7 @@ def test_mock_route_writes_telemetry(tmp_path, monkeypatch):
     )
     raw = handle_chat(request, force_mock=True)
     assert raw["choices"][0]["message"]["content"]
+    assert raw["amg_request_id"].startswith("amg_")  # outcome-callback key
 
     conn = sqlite3.connect(telemetry_path)
     row = conn.execute(
