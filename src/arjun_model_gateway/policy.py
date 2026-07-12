@@ -75,8 +75,12 @@ def classify_request(request: ChatCompletionRequest) -> list[str]:
 
 
 def resolve_profile_name(request: ChatCompletionRequest, policy: Policy) -> str:
+    """Precedence: explicit metadata.routing_profile > the standard OpenAI
+    `model` field > the policy default. A caller who names a profile in
+    `model` (the normal OpenAI-client way) must get that profile — never the
+    auto-classifier, which is only for `model="auto"`."""
     name = request.metadata.routing_profile or request.model or policy.default_profile
-    if name in (None, "", "auto"):
+    if name in (None, ""):
         name = "auto"
     if request.metadata.privacy_level in LOCAL_PRIVACY_LEVELS and "private" in policy.profiles:
         return "private"

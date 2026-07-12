@@ -31,7 +31,10 @@ class GatewayMetadata(BaseModel):
     script: str | None = None
     call_site_id: str | None = None
     task_label: str | None = None
-    routing_profile: str = "auto"
+    # None (not "auto") so a caller's standard OpenAI `model` field — which is
+    # how a profile is normally requested — is not shadowed by a metadata
+    # default. Only an EXPLICIT routing_profile overrides `model`.
+    routing_profile: str | None = None
     privacy_level: str = "normal"  # local_only/private_local/no_external force the local route
     latency_priority: str | None = None  # "high" switches the objective to fastest
     cost_priority: str | None = None

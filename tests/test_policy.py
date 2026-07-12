@@ -45,6 +45,33 @@ def test_policy_validates_and_a_pinned_model_is_impossible():
     assert not hasattr(policy.profiles["cheap"], "model")
 
 
+def test_model_field_names_the_profile_and_beats_the_auto_classifier(fake_catalog):
+    """Regression: a standard OpenAI client sends the profile in `model`. The
+    metadata default must not shadow it and send the call to the classifier —
+    that once routed News's cheap ETF tagging into a finance FUSION panel."""
+    policy = validate_policy()
+    request = ChatCompletionRequest(
+        model="cheap",
+        # finance/coding words in the prompt would fool the auto-classifier
+        messages=[ChatMessage(role="user", content="Classify this ETF: portfolio, factor, alpha")],
+        metadata=GatewayMetadata(repo="News", script="report/tags.py"),
+    )
+    decision = choose_route(request, policy, catalog=fake_catalog)
+    assert decision.routing_profile == "cheap"
+    assert decision.route_type == "simple"
+
+
+def test_explicit_routing_profile_overrides_model_field(fake_catalog):
+    policy = validate_policy()
+    request = ChatCompletionRequest(
+        model="cheap",
+        messages=[ChatMessage(role="user", content="hi")],
+        metadata=GatewayMetadata(routing_profile="frontier"),
+    )
+    decision = choose_route(request, policy, catalog=fake_catalog)
+    assert decision.routing_profile == "frontier"
+
+
 def test_auto_routes_coding_to_code_profile(fake_catalog):
     policy = validate_policy()
     request = ChatCompletionRequest(
