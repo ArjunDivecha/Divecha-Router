@@ -99,3 +99,35 @@ cases:
         prompt: Condense the wording.
       - kind: rambling
         prompt: The wording feels longer than it needs to be, so trim it while preserving the meaning.
+
+  - id: long-context-summary
+    expected_profile: long_context
+    prompt: Summarize the attached document.
+    metadata:
+      context_length_estimate: 150000
+    variants:
+      - kind: character
+        prompt: Summairze the attachd document.
+      - kind: word
+        prompt: Provide a summary of the attached document.
+      - kind: syntax
+        prompt: The attached document should be summarized.
+      - kind: paraphrase
+        prompt: Give a condensed overview of what's in the attached document.
+      - kind: rambling
+        prompt: There's a lot going on in this attached document and I don't have time to read all of it myself, so please summarize it for me.
+
+  - id: fast-weekend-planning
+    expected_profile: fast
+    prompt: I'm trying to plan a relaxed weekend for my family and could use some help thinking it through out loud, since everyone has a different idea about timing. We want to visit the botanical garden in the morning, swing by the farmers market for fresh produce, and then head to the lake in the afternoon before the kids get too tired and cranky. Could you help me figure out roughly how much time to spend at each stop, what snacks and drinks we should pack for the car, where a good spot for a casual lunch might be along the way, and what a sensible backup plan looks like if the weather turns and it starts raining before we even get to the lake.
+    variants:
+      - kind: character
+        prompt: Im tryng to plan a relaxd weeknd for my familly and could use some help thinkng it throughh out loud, since everyone has a differnt idea about timng. We want to visit the botanicl garden in the mornng, swing by the farmers markt for fresh produce, and then head to the lak in the afternoon before the kids get too tired and cranky. Could you help me figur out roughly how much time to spend at each stop, what snacks and drinks we should pack for the car, where a good spot for a casual lunch might be along the way, and what a sensible backup plan looks like if the weather turns and it starts raining before we even get to the lake.
+      - kind: word
+        prompt: I am trying to organize a laid-back weekend for my household and would appreciate some help talking it through. We would like to tour the botanical garden in the morning, stop by the farmers market for fresh produce, then travel to the lake in the afternoon before the children get worn out and cranky. Could you help me work out roughly how long to spend at each stop, what snacks and drinks we should bring along for the drive, where a nice spot for a relaxed lunch might be on the way, and what a sensible fallback plan looks like if the weather changes and it starts raining before we even arrive at the lake.
+      - kind: syntax
+        prompt: For my family's relaxed weekend, help is what I could use thinking it through out loud, since everyone has a different idea about timing. In the morning the botanical garden is where we want to go, the farmers market is where we'll stop for fresh produce, and in the afternoon the lake is where we'll head before the kids get too tired and cranky. Roughly how much time to spend at each stop, what snacks and drinks we should pack for the car, where a good spot for a casual lunch might be along the way, and what a sensible backup plan looks like if it starts raining before we even get to the lake, could you help me figure out?
+      - kind: paraphrase
+        prompt: I want to sketch out an easygoing Saturday and Sunday for my family and would love a thinking partner, since everyone in the house has a slightly different idea about timing and nobody wants to be the one who ruins it by overplanning. The plan is a morning stroll through the botanical garden, an afternoon stop at the farmers market for fresh produce, then some lake time before the kids wear out and get cranky. Could you help me estimate how long each stop deserves, what snacks and drinks belong in the car, a nice casual spot for lunch along the route, and a sensible fallback for when the sky clouds over and rain starts before we even reach the lake.
+      - kind: rambling
+        prompt: So here's the thing, I keep going back and forth on this and I don't want to overthink it but also don't want us all standing around bored, so let me just talk through the weekend out loud with you. We're thinking morning at the botanical garden, then the farmers market for fresh produce, then the lake in the afternoon, but the kids get tired and cranky fast so timing matters a lot here, and honestly I have no idea how long each stop should really take, what snacks and drinks make sense to toss in the car, where along the way we might grab a casual lunch, and what we'd even do instead if the clouds roll in and it starts raining before we make it to the lake at all.
