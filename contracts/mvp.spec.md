@@ -8,6 +8,7 @@ Allowed write paths:
 - `pyproject.toml`
 - `config/**`
 - `contracts/**`
+- `evals/**`
 - `src/**`
 - `tests/**`
 - `reports/**`
@@ -48,6 +49,7 @@ The MVP is useful if a local OpenAI-compatible endpoint can accept a request, ro
 ## Verification Gates
 
 - `amg policy validate`
+- `amg eval routing-robustness --minimum 0.95`
 - `amg routes test --mock`
 - `amg registry validate`
 - `amg scanner scan --root .`
@@ -75,6 +77,7 @@ The MVP is useful if a local OpenAI-compatible endpoint can accept a request, ro
 - policy and registry schemas validate
 - scanner reports model call sites and hard-coded models
 - tests pass
+- semantic prompt variants preserve the expected routing profile at or above 95%
 
 ## Scale Conditions
 
@@ -110,3 +113,15 @@ The MVP is useful if a local OpenAI-compatible endpoint can accept a request, ro
   through the deployed service: synthesized frontier-panel answer in 291s,
   $1.51 (the chat-completions beta path returned unsynthesized panel dumps).
   36 tests pass.
+- 2026-07-14: Added paper-derived routing quality gates from arXiv:2607.09197:
+  deterministic route-equivalence tests across character, word, syntax,
+  paraphrase, and rambling perturbations; expected-profile accuracy so a
+  stable but wrong route cannot pass; broader intent phrase families; and an
+  HSE-based, quality/cost-gated actor coreset evaluator for private eval
+  matrices. These checks are offline and add no classifier-model cost or
+  request latency. Verification: 46 unit tests pass; 6 cases / 30 variants
+  pass at 100% route robustness and expected-profile accuracy; deployed
+  `/v1/routes/explain` preserved Fusion for finance paraphrases and Advisor
+  for coding paraphrases against a refreshed 343-model catalog. Also fixed
+  scanner self-ingestion of `reports/`, `runs/`, and catalog `data/` (384,783
+  false findings reduced to 406 source findings).

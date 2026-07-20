@@ -1,0 +1,101 @@
+version: 1
+minimum_robustness: 0.95
+
+# Each case holds the task constant while changing only its surface form.
+# The five perturbation families follow arXiv:2607.09197.
+cases:
+  - id: finance-risk
+    expected_profile: finance
+    prompt: Analyze the risks in this investment portfolio.
+    variants:
+      - kind: character
+        prompt: Analyz the risks in this investment portfoliio.
+      - kind: word
+        prompt: Assess the downside exposure in these holdings.
+      - kind: syntax
+        prompt: For these asset positions, which risks should be assessed?
+      - kind: paraphrase
+        prompt: Where could this collection of securities lose money?
+      - kind: rambling
+        prompt: I have been thinking about several scenarios; review the asset allocation and drawdown risks.
+
+  - id: coding-repair
+    expected_profile: code
+    prompt: Debug this repository change and run its tests.
+    variants:
+      - kind: character
+        prompt: Debg this repositry change and run the tests.
+      - kind: word
+        prompt: Find the bug in this software patch and verify the fix.
+      - kind: syntax
+        prompt: This implementation fails; identify the cause and correct it.
+      - kind: paraphrase
+        prompt: Work out why the program change breaks and produce a tested repair.
+      - kind: rambling
+        prompt: I tried several approaches and still see the same stack trace; inspect the patch, correct it, and test the result.
+
+  - id: sourced-research
+    expected_profile: research
+    prompt: Compare the evidence from several sources and synthesize a conclusion.
+    variants:
+      - kind: character
+        prompt: Compare the evidnce from several sources and synthesize a conclusion.
+      - kind: word
+        prompt: Review the literature and reconcile the findings.
+      - kind: syntax
+        prompt: From the cited sources, what conclusion is best supported?
+      - kind: paraphrase
+        prompt: Investigate the competing claims and produce an evidence-based answer.
+      - kind: rambling
+        prompt: There are many opinions here and I do not want a snap answer; examine the citations and reconcile the disagreement.
+
+  - id: legal-review
+    expected_profile: research
+    prompt: Review the legal arguments and identify the controlling law.
+    variants:
+      - kind: character
+        prompt: Review the legl arguments and identify the controlling law.
+      - kind: word
+        prompt: Assess the regulatory arguments and governing authority.
+      - kind: syntax
+        prompt: Which law controls these competing arguments?
+      - kind: paraphrase
+        prompt: Evaluate the case under the applicable legal rules.
+      - kind: rambling
+        prompt: The parties tell very different stories; apply the governing legal authority and explain which argument prevails.
+
+  - id: structured-extraction
+    expected_profile: structured
+    prompt: Extract the requested fields.
+    metadata:
+      structured_output_schema:
+        type: object
+        properties:
+          name: {type: string}
+        required: [name]
+    variants:
+      - kind: character
+        prompt: Extrct the requested fields.
+      - kind: word
+        prompt: Return the specified values.
+      - kind: syntax
+        prompt: The requested fields should be extracted.
+      - kind: paraphrase
+        prompt: Pull out only the required information.
+      - kind: rambling
+        prompt: There is plenty of surrounding prose, but the result should contain only the requested fields.
+
+  - id: simple-cleanup
+    expected_profile: cheap
+    prompt: Make this sentence shorter.
+    variants:
+      - kind: character
+        prompt: Make this sentnce shorter.
+      - kind: word
+        prompt: Shorten this sentence.
+      - kind: syntax
+        prompt: This sentence should be made shorter.
+      - kind: paraphrase
+        prompt: Condense the wording.
+      - kind: rambling
+        prompt: The wording feels longer than it needs to be, so trim it while preserving the meaning.

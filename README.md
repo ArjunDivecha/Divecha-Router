@@ -55,6 +55,9 @@ amg policy validate
 amg intel refresh               # live catalog + snapshot
 amg intel choose --profile cheap
 amg intel scorecard --profile code
+amg eval routing-robustness --minimum 0.95
+amg eval diversity --matrix evals/behavior_matrix.example.yaml \
+  --max-cost-per-verified-success-usd 0.50
 amg serve --load-env            # gateway on http://127.0.0.1:8765/v1
 pytest
 ```
@@ -97,6 +100,30 @@ Every call writes an attempt row; every verification writes an outcome row:
 P(success) per (profile, model) is a Beta posterior seeded from the model's
 live intelligence rank (~6 pseudo-observations) and updated by real outcomes,
 so a model that keeps failing gets priced out of its route automatically.
+
+## Routing quality gates
+
+The auto-classifier is deterministic and free at request time. Its policy is
+tested against `evals/routing_robustness.yaml`, where the same workload is
+rewritten with character, word, syntax, paraphrase, and irrelevant-context
+perturbations. This operationalizes the robustness test in
+[When is Routing Meaningful?](https://arxiv.org/abs/2607.09197). The gate
+requires both route equivalence and the expected profile, so a classifier
+that is consistently wrong cannot pass:
+
+```bash
+amg eval routing-robustness --minimum 0.95
+```
+
+Candidate-model diversity is evaluated from private per-workload scores, not
+provider labels or benchmark reputation. `amg eval diversity` computes
+hierarchic social entropy over behavioral score vectors, flags near-duplicate
+actors, applies verified-quality and cost-per-verified-success constraints,
+and emits a small coreset, stopping when another actor adds no material joint
+diversity-plus-quality value. The example file documents the input schema; replace
+its illustrative actors with real eval results before using its report to
+change production policy. Both eval commands write a stable latest report and
+a timestamped comparison artifact under `reports/`.
 
 ## Endpoints
 
@@ -150,8 +177,10 @@ throughput. Aggregates always compute throughput as
 - `src/arjun_model_gateway/catalog.py` — live doubly-ranked catalog
 - `src/arjun_model_gateway/selector.py` — constraint filtering, floors, scoring, route graphs
 - `src/arjun_model_gateway/policy.py` — decision assembly
+- `src/arjun_model_gateway/routing_eval.py` — route robustness + behavioral diversity gates
 - `src/arjun_model_gateway/gateway.py` — FastAPI service, enforcement, outcomes, streaming
 - `config/policy.yaml` — profiles (zero model IDs; validated)
+- `evals/routing_robustness.yaml` — semantic route-equivalence cases
 - `config/success_priors.yaml` — optional manual seed overrides (empty by default)
 - `contracts/mvp.spec.md` — implementation contract + execution ledger
 - `data/` — telemetry.sqlite, catalog_snapshot.json, registry.json
@@ -167,3 +196,12 @@ frontier→claude-fable-5 with gpt-5.6-sol fallback), schema enforcement +
 auto-outcome, budget rejection (HTTP 400), real streaming, advisor route,
 outcome→posterior learning join, generation-stats back-fill. See
 `runs/2026-07-10_v2_live_test/`.
+
+## Verified after routing-robustness update (2026-07-14)
+
+46 unit tests pass. The offline gate passes 6 workload cases and 30 semantic
+variants at 100% route robustness and 100% expected-profile accuracy. After a
+LaunchAgent restart, `/health` reported 343 live OpenRouter models from the
+July 14 catalog; live no-execution route explanations kept both finance
+phrasings on Fusion and both coding phrasings on Advisor. No paid provider
+generation was used for these checks.

@@ -16,8 +16,11 @@ SKIP_DIRS = {
     "__pycache__",
     ".mypy_cache",
     ".pytest_cache",
+    "data",
     "dist",
     "build",
+    "reports",
+    "runs",
 }
 SECRET_NAMES = {".env", ".env.local", ".env.production", "id_rsa", "id_ed25519"}
 TEXT_EXTENSIONS = {
@@ -92,8 +95,12 @@ def iter_files(root: Path):
 
 def scan(root: Path, output: Path | None = None) -> dict:
     ensure_dirs()
+    output = output or REPORTS_DIR / "repo_scan.json"
+    output_resolved = output.resolve()
     findings: list[Finding] = []
     for path in iter_files(root):
+        if path.resolve() == output_resolved:
+            continue
         try:
             lines = path.read_text(errors="ignore").splitlines()
         except OSError:
@@ -136,7 +143,6 @@ def scan(root: Path, output: Path | None = None) -> dict:
             {"risk": "hardcoded_models", "count": len([f for f in findings if f.kind == "hardcoded_model"])},
         ],
     }
-    output = output or REPORTS_DIR / "repo_scan.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2))
     return report
@@ -165,4 +171,3 @@ def generate_eval_candidates(scan_report: dict, output: Path | None = None) -> d
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2))
     return report
-

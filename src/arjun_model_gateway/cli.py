@@ -11,6 +11,8 @@ Typer CLI (`amg`) for operating the gateway:
   amg intel refresh             force-refresh the live OpenRouter catalog
   amg intel choose PROFILE      show which model the profile picks right now
   amg intel scorecard PROFILE   ranked candidates with costs and posteriors
+  amg eval routing-robustness   gate route stability across prompt variants
+  amg eval diversity            select a quality/cost-gated actor coreset
   amg routes test [--mock]      end-to-end smoke through the gateway
   amg outcomes report ...       record a manual verification outcome
   amg telemetry summary|report  usage/cost/outcome reporting
@@ -47,6 +49,13 @@ from .gateway import handle_chat
 from .models import ChatCompletionRequest, ChatMessage, GatewayMetadata
 from .policy import manual_seeds
 from .registry import refresh_openrouter_registry, validate_registry
+from .routing_eval import (
+    build_diversity_report,
+    evaluate_routing_robustness,
+    load_behavior_matrix,
+    load_routing_suite,
+    write_versioned_report,
+)
 from .scanner import generate_eval_candidates, scan
 from .selector import RoutingError, select
 from .telemetry import (
@@ -65,6 +74,7 @@ routes_app = typer.Typer(help="Route smoke-test commands")
 telemetry_app = typer.Typer(help="Telemetry reporting commands")
 intel_app = typer.Typer(help="Live model intelligence commands")
 outcomes_app = typer.Typer(help="Verification outcome commands")
+eval_app = typer.Typer(help="Offline routing evaluation gates")
 app.add_typer(registry_app, name="registry")
 app.add_typer(policy_app, name="policy")
 app.add_typer(scanner_app, name="scanner")
@@ -72,6 +82,7 @@ app.add_typer(routes_app, name="routes")
 app.add_typer(telemetry_app, name="telemetry")
 app.add_typer(intel_app, name="intel")
 app.add_typer(outcomes_app, name="outcomes")
+app.add_typer(eval_app, name="eval")
 
 
 @app.command()
@@ -194,6 +205,64 @@ def outcomes_report(
 ) -> None:
     record_outcome(request_id, success=success, verifier=verifier, detail=detail or None)
     typer.echo(json.dumps({"ok": True, "request_id": request_id, "success": success}, indent=2))
+
+
+@eval_app.command("routing-robustness")
+def eval_routing_robustness(
+    cases: Path = Path("evals/routing_robustness.yaml"),
+    output: Path = Path("reports/routing_robustness.json"),
+    minimum: float | None = None,
+) -> None:
+    """Fail when semantic prompt variants change or miss the intended route."""
+    suite = load_routing_suite(cases)
+    report = evaluate_routing_robustness(suite, validate_policy(), minimum=minimum)
+    outputs = write_versioned_report(report, output)
+    typer.echo(
+        json.dumps(
+            {
+                "passed": report["passed"],
+                "route_robustness": report["route_robustness"],
+                "expected_profile_accuracy": report["expected_profile_accuracy"],
+                "cases": report["cases"],
+                "variants": report["variants"],
+                "outputs": [str(path) for path in outputs],
+            },
+            indent=2,
+        )
+    )
+    if not report["passed"]:
+        raise typer.Exit(1)
+
+
+@eval_app.command("diversity")
+def eval_diversity(
+    matrix: Path = typer.Option(..., "--matrix", help="Verified per-workload actor scores"),
+    output: Path = Path("reports/route_diversity.json"),
+    max_actors: int = 8,
+    min_mean_score: float = 0.0,
+    max_cost_per_verified_success_usd: float | None = None,
+    minimum_joint_gain: float = 0.001,
+) -> None:
+    """Measure behavioral HSE and select a small quality/cost-gated pool."""
+    report = build_diversity_report(
+        load_behavior_matrix(matrix),
+        max_actors=max_actors,
+        min_mean_score=min_mean_score,
+        max_cost_per_verified_success_usd=max_cost_per_verified_success_usd,
+        minimum_joint_gain=minimum_joint_gain,
+    )
+    outputs = write_versioned_report(report, output)
+    typer.echo(
+        json.dumps(
+            {
+                "actor_count": report["actor_count"],
+                "eligible_actor_count": report["eligible_actor_count"],
+                "coreset": report["coreset"],
+                "outputs": [str(path) for path in outputs],
+            },
+            indent=2,
+        )
+    )
 
 
 def _selection_for(profile_name: str, limit: int):

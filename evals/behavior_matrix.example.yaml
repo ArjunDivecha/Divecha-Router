@@ -1,0 +1,17 @@
+version: 1
+
+# Replace these illustrative candidates with verified per-workload eval scores.
+# Costs are total cost per verified success, not raw token prices.
+actors:
+  - id: candidate-balanced
+    scores: {code: 0.86, structured: 0.94, research: 0.78, finance: 0.76}
+    cost_per_verified_success_usd: 0.12
+  - id: candidate-code
+    scores: {code: 0.97, structured: 0.82, research: 0.70, finance: 0.68}
+    cost_per_verified_success_usd: 0.18
+  - id: candidate-research
+    scores: {code: 0.74, structured: 0.80, research: 0.96, finance: 0.93}
+    cost_per_verified_success_usd: 0.44
+  - id: candidate-redundant
+    scores: {code: 0.85, structured: 0.93, research: 0.77, finance: 0.75}
+    cost_per_verified_success_usd: 0.16

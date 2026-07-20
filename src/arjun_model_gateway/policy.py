@@ -27,6 +27,7 @@ OUTPUT FILES: none — this module performs no file I/O.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
@@ -39,6 +40,75 @@ from .telemetry import latency_observations, success_counts
 
 LOCAL_PRIVACY_LEVELS = {"local_only", "private_local", "no_external"}
 MANUAL_SEEDS_PATH = CONFIG_DIR / "success_priors.yaml"
+
+# The auto-classifier is intentionally deterministic and free at request time.
+# These phrase families are broader than a handful of exact product terms, so
+# semantically equivalent prompts do not jump between cheap, Advisor, and
+# Fusion routes merely because the user paraphrased the task.
+INTENT_PATTERNS: dict[str, tuple[str, ...]] = {
+    "coding": (
+        r"\brepo(?:sitory)?\b",
+        r"\bdiffs?\b",
+        r"\btests?\b",
+        r"\bpytest\b",
+        r"\bdebug(?:ging)?\b",
+        r"\brefactor(?:ing)?\b",
+        r"\bbugs?\b",
+        r"\bcode\b",
+        r"\bsoftware\b",
+        r"\bprogram(?:ming)?\b",
+        r"\bimplement(?:ation|ing)?\b",
+        r"\bpatch(?:es)?\b",
+        r"\bstack\s+trace\b",
+        r"\bexceptions?\b",
+        r"\bcompile[sd]?\b",
+        r"\bbuild\s+fail(?:s|ed|ure)?\b",
+    ),
+    "finance": (
+        r"\bportfolios?\b",
+        r"\bholdings?\b",
+        r"\basset\s+allocation\b",
+        r"\basset\s+positions?\b",
+        r"\bsecurities\b",
+        r"\binvest(?:ment|ing|or)s?\b",
+        r"\bdrawdowns?\b",
+        r"\brisk[- ]adjusted\b",
+        r"\bmarket\s+risk\b",
+        r"\bvaluation\b",
+        r"\bequit(?:y|ies)\b",
+        r"\bbonds?\b",
+        r"\bquant(?:itative)?\b",
+        r"\balpha\b",
+        r"\bfactor\b",
+        r"\bbloomberg\b",
+        r"\bfinance\b",
+    ),
+    "high_stakes": (
+        r"\blegal\b",
+        r"\blaw\b",
+        r"\bregulat(?:ion|ory|or)\b",
+        r"\bmedical\b",
+        r"\bclinical\b",
+        r"\bdiagnos(?:is|e|tic)\b",
+        r"\bhigh[ -]stakes\b",
+    ),
+    "research": (
+        r"\bresearch\b",
+        r"\bevidence\b",
+        r"\bsources?\b",
+        r"\bcitations?\b",
+        r"\bliterature\b",
+        r"\binvestigat(?:e|ion)\b",
+        r"\bcompar(?:e|ison|ative)\b",
+        r"\bdisagree(?:ment)?\b",
+        r"\bsynthesi[sz](?:e|ed|ing|s)?\b",
+        r"\blatest\b",
+    ),
+}
+
+
+def _matches_intent(text: str, label: str) -> bool:
+    return any(re.search(pattern, text) for pattern in INTENT_PATTERNS[label])
 
 
 def manual_seeds(profile_name: str, path: Path = MANUAL_SEEDS_PATH) -> dict[str, float]:
@@ -53,18 +123,17 @@ def manual_seeds(profile_name: str, path: Path = MANUAL_SEEDS_PATH) -> dict[str,
 def classify_request(request: ChatCompletionRequest) -> list[str]:
     text = " ".join(str(m.content).lower() for m in request.messages)
     labels: list[str] = []
-    if request.tools or "tool" in text:
+    if request.tools or re.search(r"\btools?\b", text):
         labels.append("tool_calling")
-    if request.response_format or request.metadata.structured_output_schema or "json" in text:
+    if (
+        request.response_format
+        or request.metadata.structured_output_schema
+        or re.search(r"\bjson\b", text)
+    ):
         labels.append("structured_output")
-    if any(word in text for word in ("repo", "diff", "test", "pytest", "debug", "refactor")):
-        labels.append("coding")
-    if any(word in text for word in ("portfolio", "alpha", "factor", "bloomberg", "finance")):
-        labels.append("finance")
-    if any(word in text for word in ("legal", "medical", "high stakes", "investment")):
-        labels.append("high_stakes")
-    if any(word in text for word in ("compare", "disagree", "research", "synthesis", "latest", "evidence")):
-        labels.append("research")
+    for label in ("coding", "finance", "high_stakes", "research"):
+        if _matches_intent(text, label):
+            labels.append(label)
     if len(text) < 600 and not any(
         label in labels for label in ("coding", "finance", "high_stakes", "research")
     ):
