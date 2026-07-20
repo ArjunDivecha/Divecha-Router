@@ -1,7 +1,7 @@
 ---
 divecha: 3
 id: ROUTE-EVAL-COVERAGE-001
-status: building
+status: green
 objective: 'add routing-robustness eval coverage for the two auto-routable profiles
   that currently have none: long_context and fast'
 scope:
@@ -95,6 +95,14 @@ ledger:
   failing:
   - B2
   note: B2 rc=4
+- at: '2026-07-20T07:11:43.855938+00:00'
+  turn: 1
+  failing: []
+  note: green
+- at: '2026-07-20T07:16:02.551725+00:00'
+  turn: 1
+  failing: []
+  note: green
 ---
 
 Anti-overfit note for the builder: the point is genuine surface-form diversity, not
