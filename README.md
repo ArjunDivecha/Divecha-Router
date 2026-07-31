@@ -58,6 +58,9 @@ amg intel scorecard --profile code
 amg eval routing-robustness --minimum 0.95
 amg eval diversity --matrix evals/behavior_matrix.example.yaml \
   --max-cost-per-verified-success-usd 0.50
+amg eval replay-plan \
+  --suite evals/camera_history/suite.yaml \
+  --policies evals/camera_history/policies.yaml
 amg serve --load-env            # gateway on http://127.0.0.1:8765/v1
 pytest
 ```
@@ -178,9 +181,11 @@ throughput. Aggregates always compute throughput as
 - `src/arjun_model_gateway/selector.py` — constraint filtering, floors, scoring, route graphs
 - `src/arjun_model_gateway/policy.py` — decision assembly
 - `src/arjun_model_gateway/routing_eval.py` — route robustness + behavioral diversity gates
+- `src/arjun_model_gateway/replay_eval.py` — leakage-resistant real-history replay plans
 - `src/arjun_model_gateway/gateway.py` — FastAPI service, enforcement, outcomes, streaming
 - `config/policy.yaml` — profiles (zero model IDs; validated)
 - `evals/routing_robustness.yaml` — semantic route-equivalence cases
+- `evals/camera_history/` — sanitized Camera tasks and model-consumption policies
 - `config/success_priors.yaml` — optional manual seed overrides (empty by default)
 - `contracts/mvp.spec.md` — implementation contract + execution ledger
 - `data/` — telemetry.sqlite, catalog_snapshot.json, registry.json

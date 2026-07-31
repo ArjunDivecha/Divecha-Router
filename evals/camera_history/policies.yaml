@@ -1,0 +1,45 @@
+version: 1
+
+# These are consumption policies, not production routing rules. Every replay
+# starts from the same sealed task capsule and receives the same budgets.
+policies:
+  - id: kimi_solo
+    mode: sequential
+    selection: final_stage
+    stages:
+      - {order: 1, model_family: kimi, role: execute, trigger: always, input: task}
+
+  - id: fable_solo
+    mode: sequential
+    selection: final_stage
+    stages:
+      - {order: 1, model_family: fable, role: execute, trigger: always, input: task}
+
+  - id: kimi_then_fable_on_failure
+    mode: sequential
+    selection: final_stage
+    stages:
+      - {order: 1, model_family: kimi, role: execute, trigger: always, input: task}
+      - {order: 2, model_family: fable, role: repair, trigger: on_verification_failure, input: task_and_artifacts}
+
+  - id: fable_plan_kimi_execute
+    mode: sequential
+    selection: final_stage
+    stages:
+      - {order: 1, model_family: fable, role: plan, trigger: always, input: task}
+      - {order: 2, model_family: kimi, role: execute, trigger: after_plan, input: task_and_plan}
+
+  - id: kimi_build_fable_review_kimi_repair
+    mode: sequential
+    selection: final_stage
+    stages:
+      - {order: 1, model_family: kimi, role: execute, trigger: always, input: task}
+      - {order: 2, model_family: fable, role: review, trigger: always, input: task_and_artifacts}
+      - {order: 3, model_family: kimi, role: repair, trigger: after_review, input: task_and_review}
+
+  - id: parallel_oracle
+    mode: parallel
+    selection: cheapest_verified
+    stages:
+      - {order: 1, model_family: kimi, role: independent, trigger: always, input: task}
+      - {order: 1, model_family: fable, role: independent, trigger: always, input: task}

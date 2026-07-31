@@ -1,0 +1,63 @@
+version: 2
+status: paid_ready
+paid_calls_enabled: true
+
+purpose: >-
+  Validate the replay infrastructure before any additional K3 or Fable spend.
+  This protocol must be versioned and hashed before a future paid run.
+
+tasks:
+  - camera_dock_and_ios_regression
+  - camera_ios_clip_playback
+
+future_models:
+  kimi: moonshotai/kimi-k3
+  fable: anthropic/claude-fable-5
+
+future_policies:
+  - kimi_solo
+  - fable_solo
+  - kimi_then_fable_on_failure
+
+execution_order:
+  tasks: listed
+  policies: listed
+  repetitions: ascending
+
+generation:
+  temperature: 0.2
+  tool_choice: auto
+
+combination_semantics:
+  carry_forward_workspace: true
+  invoke_fable_only_after_failed_hidden_verification: true
+  repair_feedback: failed_check_names_only
+
+frozen_limits:
+  max_turns_per_stage: 12
+  max_output_tokens_per_turn: 3500
+  max_cost_usd_per_stage: 3.0
+  repetitions_per_cell: 3
+
+required_provider_free_controls:
+  - every advertised tool succeeds through the common agent loop
+  - path escape and network command attempts are rejected
+  - each historical base fails its hidden verifier
+  - each historical gold passes its hidden verifier
+  - a scripted agent can repair each base through the same write tools
+  - each candidate transcript and final workspace is preserved
+  - provider call count and provider cost both equal zero
+
+validation_surface:
+  - TypeScript no-emit check
+  - Next.js production build with webpack
+  # Historical snapshots fail current-repo ESLint rules when paired with the
+  # current dependency tree, so lint is not advertised as a hermetic v2 tool.
+
+scoring:
+  primary: verified_success_rate
+  secondary:
+    - cost_per_verified_success
+    - latency_per_verified_success
+  verifier_changes_after_paid_start: forbidden
+  post_hoc_rescoring: forbidden

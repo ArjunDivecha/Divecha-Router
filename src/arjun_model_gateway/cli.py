@@ -13,6 +13,7 @@ Typer CLI (`amg`) for operating the gateway:
   amg intel scorecard PROFILE   ranked candidates with costs and posteriors
   amg eval routing-robustness   gate route stability across prompt variants
   amg eval diversity            select a quality/cost-gated actor coreset
+  amg eval replay-plan          validate real-history tasks and consumption policies
   amg routes test [--mock]      end-to-end smoke through the gateway
   amg outcomes report ...       record a manual verification outcome
   amg telemetry summary|report  usage/cost/outcome reporting
@@ -49,6 +50,12 @@ from .gateway import handle_chat
 from .models import ChatCompletionRequest, ChatMessage, GatewayMetadata
 from .policy import manual_seeds
 from .registry import refresh_openrouter_registry, validate_registry
+from .replay_eval import (
+    load_replay_policies,
+    load_replay_suite,
+    validate_replay_plan,
+    write_replay_report,
+)
 from .routing_eval import (
     build_diversity_report,
     evaluate_routing_robustness,
@@ -263,6 +270,36 @@ def eval_diversity(
             indent=2,
         )
     )
+
+
+@eval_app.command("replay-plan")
+def eval_replay_plan(
+    suite: Path = Path("evals/camera_history/suite.yaml"),
+    policies: Path = Path("evals/camera_history/policies.yaml"),
+    output: Path = Path("reports/camera_replay_plan.json"),
+) -> None:
+    """Validate sealed historical tasks and expand model-consumption policies."""
+    report = validate_replay_plan(
+        load_replay_suite(suite),
+        load_replay_policies(policies),
+    )
+    write_replay_report(report, output)
+    typer.echo(
+        json.dumps(
+            {
+                "passed": report["passed"],
+                "tasks": report["task_count"],
+                "policies": report["policy_count"],
+                "policy_task_cells": report["policy_task_cells"],
+                "maximum_model_consumptions": report["maximum_model_consumptions"],
+                "errors": report["errors"],
+                "output": str(output),
+            },
+            indent=2,
+        )
+    )
+    if not report["passed"]:
+        raise typer.Exit(1)
 
 
 def _selection_for(profile_name: str, limit: int):

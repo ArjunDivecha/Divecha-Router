@@ -1,0 +1,184 @@
+version: 1
+name: camera-real-history-v1
+
+# These records remain private and are never copied into a model prompt.
+private_source_records:
+  - /Users/arjundivecha/.claude/projects/-Users-arjundivecha/c5e7c525-42ee-44d7-ad19-70e657cab9b7.jsonl
+  - /Users/arjundivecha/.codex/attachments/e3cf56c7-21f4-4839-838e-bdf6ef1f3d74/pasted-text.txt
+
+tasks:
+  - id: camera_nvr_foundation
+    title: Build an always-on local NVR foundation
+    task_family: agentic_full_stack
+    repo: /Users/arjundivecha/Dropbox/AAA Backup/A Working/Camera
+    base_commit: 7f66b97f397672943df8150bd5736f1dd4037381
+    gold_commit: bae3b6f7a97336e84bbfdf3317d02a872e5d52d9
+    source_timestamp: "2026-07-21T23:58:12.915Z"
+    readiness: fixture_required
+    prompt: >-
+      Build an always-on software DVR replacement for seven already verified
+      RTSP camera feeds. Provide a unified browser interface, continuous
+      recording, useful retention, and a migration path to network storage.
+      Keep all credentials server-side and keep footage out of source control.
+    verifier:
+      commands:
+        - [npm, run, lint]
+        - [npm, run, build]
+      acceptance:
+        - The application and NVR configuration build without exposing credentials to client code.
+        - Seven synthetic RTSP feeds can be ingested, recorded, and represented in the UI.
+        - Generated footage, runtime configuration, and credentials remain outside version control.
+      required_fixtures: [synthetic_rtsp_seven_feed, isolated_nvr_storage, mock_credentials]
+    forbidden_capabilities: [live_network, real_credentials, production_services, external_writes]
+    notes:
+      - The real session used live cameras; replay must substitute deterministic synthetic streams.
+
+  - id: camera_unifi_dashboard
+    title: Replace the stock interface with a premium camera dashboard
+    task_family: frontend_design
+    repo: /Users/arjundivecha/Dropbox/AAA Backup/A Working/Camera
+    base_commit: 14bbd2476481009d9c4d7ea4028f967c1dccc114
+    gold_commit: f39d99439292bbfcc07d8d5169c01b7a249ac0e1
+    source_timestamp: "2026-07-22T06:31:27.741Z"
+    readiness: partial
+    prompt: >-
+      Improve the UI using ideas from a premium camera-monitoring product while
+      retaining the existing NVR engine. Build a polished responsive live grid
+      and recent-detections experience that works on desktop and mobile.
+    verifier:
+      commands:
+        - [npm, run, lint]
+        - [npm, run, build]
+      acceptance:
+        - The live page renders a responsive camera grid with clear names and live status.
+        - Recent detections are visible without replacing the existing NVR backend.
+        - No camera connection details are shipped to the browser.
+      required_fixtures: [mock_nvr_api, synthetic_camera_images]
+    forbidden_capabilities: [live_network, real_credentials, production_services, external_writes]
+    notes:
+      - Browser interaction verification is required before this task becomes ready.
+
+  - id: camera_history_timeline
+    title: Add a usable recording-history timeline
+    task_family: frontend_data_interaction
+    repo: /Users/arjundivecha/Dropbox/AAA Backup/A Working/Camera
+    base_commit: 687a2b8730ec78163da0f19c690106c2fbbe70c1
+    gold_commit: 37438471bcf1e99613503534c233a781a6af8816
+    source_timestamp: "2026-07-22T07:12:32.824Z"
+    readiness: partial
+    prompt: >-
+      Continue improving the camera application while I am away. Add a polished
+      history experience for reviewing recorded activity, verify it, and leave
+      the repository in a committed working state.
+    verifier:
+      commands:
+        - [npm, run, lint]
+        - [npm, run, build]
+      acceptance:
+        - A user can select a camera and scrub a time-based activity history.
+        - Recorded activity markers and current-time navigation are understandable.
+        - The existing live-view route still builds and renders.
+      required_fixtures: [mock_nvr_api, recorded_event_timeline]
+    forbidden_capabilities: [live_network, real_credentials, production_services, external_writes]
+    notes:
+      - The original request was broad; the committed result defines the hidden behavioral checks.
+
+  - id: camera_clickable_detections
+    title: Make recent detections open playable evidence
+    task_family: bugfix_frontend
+    repo: /Users/arjundivecha/Dropbox/AAA Backup/A Working/Camera
+    base_commit: 37438471bcf1e99613503534c233a781a6af8816
+    gold_commit: b2c928649ba4d4c7199bcabd98ec344baab967af
+    source_timestamp: "2026-07-22T18:16:16.992Z"
+    readiness: fixture_required
+    prompt: >-
+      Recent detections do not do anything when clicked. Make each detection
+      open a useful event view with playable evidence and an appropriate
+      fallback when a clip is unavailable.
+    verifier:
+      commands:
+        - [npm, run, lint]
+        - [npm, run, build]
+      acceptance:
+        - Clicking a detection opens the corresponding event rather than doing nothing.
+        - The event view can play available media and degrade to a still image when needed.
+        - Closing the event restores the prior dashboard state.
+      required_fixtures: [mock_nvr_api, event_with_clip, event_without_clip, browser_runtime]
+    forbidden_capabilities: [live_network, real_credentials, production_services, external_writes]
+    notes:
+      - This is a strong paired replay because the user reported the exact visible failure.
+
+  - id: camera_fullscreen_and_deduplicate
+    title: Add fullscreen live views and remove a redundant camera
+    task_family: feature_and_configuration
+    repo: /Users/arjundivecha/Dropbox/AAA Backup/A Working/Camera
+    base_commit: c5837d267bde24f1f3c04031e59ec6debe1c1c6c
+    gold_commit: 3b5fc6a94e3c2b5db01d1203a761e47c984134de
+    source_timestamp: "2026-07-22T18:31:03.058Z"
+    readiness: fixture_required
+    prompt: >-
+      Two configured stairway cameras show the same view, so remove the
+      redundant entry. Also make live tiles clickable into a fullscreen view
+      and preserve correct evidentiary timestamps in the offline fixture.
+    verifier:
+      commands:
+        - [npm, run, lint]
+        - [npm, run, build]
+      acceptance:
+        - The redundant camera is absent from the application and NVR configuration.
+        - Clicking a live tile opens a correctly labelled fullscreen stream.
+        - Timestamp behavior is tested only against a simulator, never a real camera.
+      required_fixtures: [mock_nvr_api, browser_runtime, simulated_camera_clock]
+    forbidden_capabilities: [live_network, real_credentials, production_services, external_writes]
+    notes:
+      - The original run changed live device clocks; replay explicitly forbids that mutation.
+
+  - id: camera_dock_and_ios_regression
+    title: Repair the desktop launcher and missing mobile detections
+    task_family: cross_platform_bugfix
+    repo: /Users/arjundivecha/Dropbox/AAA Backup/A Working/Camera
+    base_commit: 7972767a10f58945342a39a818ae2c5e14654977
+    gold_commit: 9d814d0c07f30be620fbc57a9149b42ed6fa896d
+    source_timestamp: "2026-07-22T22:04:14.737Z"
+    readiness: fixture_required
+    prompt: >-
+      The Mac launcher no longer opens the application even though the website
+      works, and the recent-detections strip is missing on iOS. Fix both
+      regressions without weakening the production deployment.
+    verifier:
+      commands:
+        - [npm, run, lint]
+        - [npm, run, build]
+      acceptance:
+        - The launcher starts or opens the intended application URL in a clean desktop session.
+        - Recent detections are visible and usable at an iPhone-sized viewport.
+        - Desktop behavior remains unchanged.
+      required_fixtures: [dock_launcher_stub, ios_webkit_runtime, mock_nvr_api]
+    forbidden_capabilities: [live_network, real_credentials, production_services, external_writes]
+    notes:
+      - This task has a direct user report and a narrow gold commit.
+
+  - id: camera_ios_clip_playback
+    title: Repair iOS event-clip playback
+    task_family: media_playback_bugfix
+    repo: /Users/arjundivecha/Dropbox/AAA Backup/A Working/Camera
+    base_commit: 9d814d0c07f30be620fbc57a9149b42ed6fa896d
+    gold_commit: c86be73998c005579eab25cd0657da20c58151d6
+    source_timestamp: "2026-07-22T22:20:38.944Z"
+    readiness: fixture_required
+    prompt: >-
+      On iOS, opening a detection shows a broken clip and reports that the clip
+      is not ready before falling back to a snapshot. Make recorded event video
+      play correctly on iOS while retaining a reliable thumbnail fallback.
+    verifier:
+      commands:
+        - [npm, run, lint]
+        - [npm, run, build]
+      acceptance:
+        - An available event recording plays at an iPhone-sized WebKit viewport.
+        - The implementation uses a mobile-compatible media path.
+        - An unavailable recording falls back to a thumbnail without a broken-media element.
+      required_fixtures: [ios_webkit_runtime, mock_hls_vod, event_without_clip]
+    forbidden_capabilities: [live_network, real_credentials, production_services, external_writes]
+    notes:
+      - The user confirmed the repaired behavior after the gold commit.
