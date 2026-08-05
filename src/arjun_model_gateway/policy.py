@@ -226,6 +226,26 @@ def _response_format(request: ChatCompletionRequest) -> dict | None:
     }
 
 
+# A subagent request escalates to the HEAVY worker tier when it looks
+# demanding: the caller explicitly raised the quality floor, the input is
+# large, or the call is agentic (brings its own tools / tool requirements).
+# Everything else is handled by the cheaper LIGHT tier. Only consulted when a
+# profile defines worker_tiers; ignored otherwise.
+HEAVY_WORKER_CONTEXT_TOKENS = 48_000
+
+
+def infer_worker_heavy(request: ChatCompletionRequest) -> bool:
+    """Auto tier signal for two-tier subagent workers (light vs heavy)."""
+    meta = request.metadata
+    if (meta.quality_floor or "") in ("high", "frontier"):
+        return True
+    if (meta.context_length_estimate or 0) >= HEAVY_WORKER_CONTEXT_TOKENS:
+        return True
+    if meta.tool_requirements or request.tools:
+        return True
+    return False
+
+
 def choose_route(
     request: ChatCompletionRequest,
     policy: Policy,
@@ -271,6 +291,8 @@ def choose_route(
         reasons.append("latency_priority=high -> objective=fastest")
         objective_override = "fastest"
 
+    worker_heavy = infer_worker_heavy(request) if profile.route_type == "subagent" else False
+
     counts, global_counts = success_counts()
     selection = select(
         profile_name,
@@ -284,7 +306,13 @@ def choose_route(
         global_counts=global_counts,
         manual_seeds=manual_seeds(profile_name),
         latency_obs=latency_observations(),
+        worker_heavy=worker_heavy,
     )
+    if profile.route_type == "subagent" and profile.worker_tiers is not None:
+        tier = selection.support.get("worker_tier", "light")
+        reasons.append(f"worker_tier={tier}" + (":heavy_signal" if worker_heavy else ""))
+        if selection.support.get("worker_tier_fallback"):
+            reasons.append(f"worker_tier_fallback={selection.support['worker_tier_fallback']}")
 
     primary = selection.primary
     reasons.extend(

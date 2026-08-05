@@ -25,6 +25,7 @@ from arjun_model_gateway.config import validate_policy
 from arjun_model_gateway.models import ChatCompletionRequest, ChatMessage, GatewayMetadata
 from arjun_model_gateway.policy import choose_route
 from arjun_model_gateway.selector import RoutingError
+from tests.conftest import FakeCatalog, make_model
 
 
 @pytest.fixture(autouse=True)
@@ -148,6 +149,51 @@ def test_unknown_profile_rejected(fake_catalog):
     with pytest.raises(RoutingError) as exc:
         choose_route(request, policy, catalog=fake_catalog)
     assert exc.value.code == "unknown_profile"
+
+
+# Catalog with two DeepSeek tiers for the real `cheap_code` profile.
+_CHEAP_CODE_MODELS = [
+    make_model("anthropic/claude-boss", 5.0, 15.0),
+    make_model("deepseek/deepseek-v4-flash-0731", 0.09, 0.18),
+    make_model("deepseek/deepseek-v4-pro", 0.43, 0.87),
+    make_model("openai/gpt-mid", 2.0, 8.0),
+    make_model("cheapo/ultra-cheap", 0.01, 0.02),
+    make_model("meta/llama-x", 0.5, 1.5),
+    make_model("filler/a", 3.0, 9.0),
+    make_model("filler/b", 4.0, 12.0),
+]
+
+
+def _cheap_code_catalog() -> FakeCatalog:
+    return FakeCatalog(_CHEAP_CODE_MODELS, latency_order=[])
+
+
+def test_cheap_code_light_default_uses_flash_worker():
+    policy = validate_policy()
+    request = ChatCompletionRequest(
+        model="cheap_code",
+        messages=[ChatMessage(role="user", content="reformat this snippet")],
+    )
+    decision = choose_route(request, policy, catalog=_cheap_code_catalog())
+    assert decision.route_type == "subagent"
+    assert decision.model == "anthropic/claude-boss"  # smartest boss
+    tool = decision.tools[0]
+    assert tool["type"] == "openrouter:subagent"
+    assert tool["parameters"]["model"] == "deepseek/deepseek-v4-flash-0731"
+    assert any("worker_tier=light" in r for r in decision.reasons)
+
+
+def test_cheap_code_heavy_signal_escalates_to_pro_worker():
+    policy = validate_policy()
+    request = ChatCompletionRequest(
+        model="cheap_code",
+        messages=[ChatMessage(role="user", content="refactor this module end to end")],
+        metadata=GatewayMetadata(quality_floor="high"),  # heavy signal
+    )
+    decision = choose_route(request, policy, catalog=_cheap_code_catalog())
+    assert decision.route_type == "subagent"
+    assert decision.tools[0]["parameters"]["model"] == "deepseek/deepseek-v4-pro"
+    assert any("worker_tier=heavy" in r for r in decision.reasons)
 
 
 def test_local_privacy_forces_private_profile(fake_catalog, monkeypatch):

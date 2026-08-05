@@ -66,6 +66,34 @@ class FusionSpec(BaseModel):
     max_tool_calls: int = 8
 
 
+class WorkerTier(BaseModel):
+    """One subagent-worker tier — still NO pinned model id. A tier narrows the
+    live catalog by soft preference (author + a substring of the model id) plus
+    an optional price cap, and the cheapest survivor is chosen at decision time.
+    `name_contains` is a substring match (e.g. "flash"/"pro"), so it tolerates
+    version suffixes (deepseek-v4-flash-0731) and degrades gracefully to the
+    author-only pool, then to the profile's cheapest worker, if it matches
+    nothing in the current catalog."""
+
+    model_config = {"extra": "forbid"}
+
+    prefer_authors: list[str] = Field(default_factory=list)
+    name_contains: str | None = None
+    max_prompt_price_per_million: float | None = None
+
+
+class WorkerTiers(BaseModel):
+    """Two-tier subagent workers: `light` for routine subtasks, `heavy` for
+    demanding ones. The router picks the tier per request (see
+    policy.infer_worker_heavy). Either tier may be omitted; the present one is
+    reused for both."""
+
+    model_config = {"extra": "forbid"}
+
+    light: WorkerTier | None = None
+    heavy: WorkerTier | None = None
+
+
 class PolicyProfile(BaseModel):
     """NO `model` FIELD, BY DESIGN. Nothing in policy may name a model —
     marketplace routes select from the live OpenRouter catalog and
@@ -82,6 +110,9 @@ class PolicyProfile(BaseModel):
     expected_tokens: ExpectedTokens = Field(default_factory=ExpectedTokens)
     default_budget_usd: float | None = None
     fusion: FusionSpec = Field(default_factory=FusionSpec)
+    # subagent routes only: optional two-tier worker selection (light/heavy).
+    # When unset the worker stays the single cheapest model in the floor pool.
+    worker_tiers: WorkerTiers | None = None
     advisor_instructions: str | None = None
     subagent_instructions: str | None = None
     require_verification: bool = False

@@ -186,11 +186,76 @@ def node_cost(model: dict[str, Any], input_tokens: int, output_tokens: int) -> f
     return input_tokens * prompt_price(model) + output_tokens * completion_price(model)
 
 
+def _cheapest(models: list[dict[str, Any]]) -> dict[str, Any] | None:
+    return min(
+        models, key=lambda m: prompt_price(m) + completion_price(m), default=None
+    )
+
+
+def select_worker(
+    profile: PolicyProfile,
+    pool: list[dict[str, Any]],
+    filtered_all: list[dict[str, Any]],
+    worker_heavy: bool,
+) -> tuple[dict[str, Any] | None, str | None, str | None]:
+    """Pick the subagent worker, honoring optional two-tier preferences.
+
+    Without `worker_tiers` this is the historical behavior: the single cheapest
+    model in the floor-restricted pool. With tiers, the request's difficulty
+    picks light vs heavy, and the worker is the cheapest model that matches the
+    tier's soft author + name preference (drawn from `filtered_all`, so a cheap
+    worker below the boss's quality floor is still eligible). If the tier match
+    is empty it degrades to the author-only pool, then to the floor pool —
+    never a hard failure just because a preference is currently unmet.
+
+    Returns (worker_model, tier_name, fallback_note)."""
+    tiers = profile.worker_tiers
+    if tiers is None:
+        return _cheapest(pool), None, None
+
+    tier_name = "heavy" if worker_heavy else "light"
+    tier = getattr(tiers, tier_name) or (tiers.light if worker_heavy else tiers.heavy)
+    if tier is None:
+        return _cheapest(pool), None, "no_tier_defined"
+
+    def matches(model: dict[str, Any], *, use_name: bool) -> bool:
+        model_id = str(model.get("id") or "")
+        if tier.prefer_authors and author_of(model_id) not in tier.prefer_authors:
+            return False
+        if use_name and tier.name_contains and tier.name_contains.lower() not in model_id.lower():
+            return False
+        if (
+            tier.max_prompt_price_per_million is not None
+            and prompt_price(model) * 1_000_000 > tier.max_prompt_price_per_million
+        ):
+            return False
+        return True
+
+    exact = _cheapest([m for m in filtered_all if matches(m, use_name=True)])
+    if exact is not None:
+        return exact, tier_name, None
+
+    author_only = _cheapest(
+        [
+            m
+            for m in filtered_all
+            if not tier.prefer_authors or author_of(str(m.get("id") or "")) in tier.prefer_authors
+        ]
+    )
+    if author_only is not None:
+        return author_only, tier_name, "tier_match_empty->author_pool"
+
+    # last resort: cheapest model meeting the hard constraints (a worker is a
+    # cheap helper — the boss's quality floor should not bind it).
+    return _cheapest(filtered_all) or _cheapest(pool), tier_name, "tier_match_empty->constraint_pool"
+
+
 def resolve_support_models(
     profile: PolicyProfile,
     catalog: Catalog,
     pool: list[dict[str, Any]],
     filtered_all: list[dict[str, Any]],
+    worker_heavy: bool = False,
 ) -> dict[str, Any]:
     """Pick advisor/judge/panel/worker models dynamically from the live catalog.
 
@@ -235,14 +300,14 @@ def resolve_support_models(
             )
         support["panel"] = panel
     if profile.route_type == "subagent":
-        worker = min(
-            pool,
-            key=lambda m: prompt_price(m) + completion_price(m),
-            default=None,
-        )
+        worker, tier_name, fallback = select_worker(profile, pool, filtered_all, worker_heavy)
         if worker is None:
             raise RoutingError("no_worker_model", "no model satisfies the subagent constraints")
         support["worker"] = worker
+        if tier_name:
+            support["worker_tier"] = tier_name
+        if fallback:
+            support["worker_tier_fallback"] = fallback
     return support
 
 
@@ -326,6 +391,7 @@ def select(
     global_counts: dict[str, tuple[int, int]] | None = None,
     manual_seeds: dict[str, float] | None = None,
     latency_obs: dict[tuple[str, str], tuple[int, float]] | None = None,
+    worker_heavy: bool = False,
 ) -> Selection:
     """Resolve a profile's constraints against the live catalog."""
     spec = profile.select
@@ -362,7 +428,7 @@ def select(
             f"max_prompt_price=${spec.max_prompt_price_per_million}/M",
         )
 
-    support = resolve_support_models(profile, catalog, pool, filtered_all)
+    support = resolve_support_models(profile, catalog, pool, filtered_all, worker_heavy)
     expected_in = profile.expected_tokens.input
     expected_out = profile.expected_tokens.output
 
