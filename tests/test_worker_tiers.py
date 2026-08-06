@@ -30,19 +30,21 @@ from arjun_model_gateway.selector import select
 from tests.conftest import FakeCatalog, make_model
 
 
-# Smartest first (rank = list position). A frontier boss, two DeepSeek tiers,
-# a globally-cheaper non-DeepSeek worker, and filler so `high` floor (top 25%)
-# yields a small boss pool that EXCLUDES the Pro tier — forcing the heavy tier
-# to reach past the floor pool, which is the behavior under test.
+# Smartest first (rank = list position). A frontier boss, two DeepSeek workers
+# where the smarter one (Pro, rank 1) is ALSO the pricier one and the cheaper
+# one (Flash, rank 5) sits BELOW the `high` floor, plus a globally-cheaper
+# non-DeepSeek model. This lets the two picks diverge: cheapest DeepSeek =
+# Flash (and proves the tier reaches past the floor pool + past a cheaper
+# non-preferred model), smartest DeepSeek = Pro.
 TIER_MODELS = [
     make_model("anthropic/claude-boss", 5.0, 15.0),
-    make_model("deepseek/deepseek-v4-flash-0731", 0.09, 0.18),
     make_model("deepseek/deepseek-v4-pro", 0.43, 0.87),
     make_model("openai/gpt-mid", 2.0, 8.0),
+    make_model("filler/model-4", 3.0, 9.0),
     make_model("cheapo/ultra-cheap", 0.01, 0.02),
-    make_model("deepseek/deepseek-chat", 0.26, 1.0),
+    make_model("deepseek/deepseek-v4-flash", 0.09, 0.18),
     make_model("meta/llama-x", 0.5, 1.5),
-    make_model("filler/model-8", 3.0, 9.0),
+    make_model("filler/model-8", 4.0, 12.0),
 ]
 
 
@@ -60,16 +62,8 @@ def tiered_profile(**overrides) -> PolicyProfile:
         "expected_tokens": {"input": 16_000, "output": 3_000},
         "default_budget_usd": 5.0,
         "worker_tiers": {
-            "light": {
-                "prefer_authors": ["deepseek"],
-                "name_contains": "flash",
-                "max_prompt_price_per_million": 0.20,
-            },
-            "heavy": {
-                "prefer_authors": ["deepseek"],
-                "name_contains": "pro",
-                "max_prompt_price_per_million": 1.0,
-            },
+            "light": {"prefer_authors": ["deepseek"], "pick": "cheapest"},
+            "heavy": {"prefer_authors": ["deepseek"], "pick": "smartest"},
         },
     }
     base.update(overrides)
@@ -80,21 +74,21 @@ def _tier_catalog(models=None) -> FakeCatalog:
     return FakeCatalog(models if models is not None else TIER_MODELS, latency_order=[])
 
 
-def test_light_tier_selects_flash_and_boss_stays_frontier():
+def test_light_tier_selects_cheapest_deepseek():
     sel = select("cheap_code", tiered_profile(), _tier_catalog(), worker_heavy=False)
     # boss = smartest in the floor pool
     assert sel.primary.model_id == "anthropic/claude-boss"
-    # worker = the Flash tier, NOT the globally-cheaper non-DeepSeek model
-    assert sel.support["worker"]["id"] == "deepseek/deepseek-v4-flash-0731"
+    # cheapest DeepSeek — reached below the boss floor, and chosen over the
+    # globally-cheaper non-DeepSeek model (author preference)
+    assert sel.support["worker"]["id"] == "deepseek/deepseek-v4-flash"
     assert sel.support["worker_tier"] == "light"
     assert "worker_tier_fallback" not in sel.support
 
 
-def test_heavy_tier_reaches_pro_below_the_boss_floor():
+def test_heavy_tier_selects_smartest_deepseek():
     sel = select("cheap_code", tiered_profile(), _tier_catalog(), worker_heavy=True)
     assert sel.primary.model_id == "anthropic/claude-boss"
-    # Pro is rank 2 — outside the `high` floor pool — so this proves the tier
-    # draws from the full hard-constraint set, not just the floor pool.
+    # smartest DeepSeek by intelligence rank (Pro, rank 1) — not the cheapest
     assert sel.support["worker"]["id"] == "deepseek/deepseek-v4-pro"
     assert sel.support["worker_tier"] == "heavy"
     assert "worker_tier_fallback" not in sel.support

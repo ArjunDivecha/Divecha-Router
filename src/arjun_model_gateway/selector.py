@@ -231,11 +231,18 @@ def select_worker(
             return False
         return True
 
-    exact = _cheapest([m for m in filtered_all if matches(m, use_name=True)])
+    def pick(models: list[dict[str, Any]]) -> dict[str, Any] | None:
+        # `filtered_all` is smartest-first (catalog order), so the first match
+        # is the smartest; cheapest scans for min route price.
+        if tier.pick == "smartest":
+            return models[0] if models else None
+        return _cheapest(models)
+
+    exact = pick([m for m in filtered_all if matches(m, use_name=True)])
     if exact is not None:
         return exact, tier_name, None
 
-    author_only = _cheapest(
+    author_only = pick(
         [
             m
             for m in filtered_all

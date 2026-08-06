@@ -151,12 +151,14 @@ def test_unknown_profile_rejected(fake_catalog):
     assert exc.value.code == "unknown_profile"
 
 
-# Catalog with two DeepSeek tiers for the real `cheap_code` profile.
+# Catalog with two DeepSeek tiers for the real `cheap_code` profile. Pro is
+# both smarter (earlier = higher rank) and pricier than Flash, so the light
+# (cheapest) and heavy (smartest) picks diverge.
 _CHEAP_CODE_MODELS = [
     make_model("anthropic/claude-boss", 5.0, 15.0),
-    make_model("deepseek/deepseek-v4-flash-0731", 0.09, 0.18),
     make_model("deepseek/deepseek-v4-pro", 0.43, 0.87),
     make_model("openai/gpt-mid", 2.0, 8.0),
+    make_model("deepseek/deepseek-v4-flash-0731", 0.09, 0.18),
     make_model("cheapo/ultra-cheap", 0.01, 0.02),
     make_model("meta/llama-x", 0.5, 1.5),
     make_model("filler/a", 3.0, 9.0),
@@ -183,7 +185,7 @@ def test_cheap_code_light_default_uses_flash_worker():
     assert any("worker_tier=light" in r for r in decision.reasons)
 
 
-def test_cheap_code_heavy_signal_escalates_to_pro_worker():
+def test_cheap_code_heavy_signal_uses_smartest_deepseek_worker():
     policy = validate_policy()
     request = ChatCompletionRequest(
         model="cheap_code",
@@ -192,6 +194,7 @@ def test_cheap_code_heavy_signal_escalates_to_pro_worker():
     )
     decision = choose_route(request, policy, catalog=_cheap_code_catalog())
     assert decision.route_type == "subagent"
+    # heavy = smartest DeepSeek by rank (Pro), not the cheapest
     assert decision.tools[0]["parameters"]["model"] == "deepseek/deepseek-v4-pro"
     assert any("worker_tier=heavy" in r for r in decision.reasons)
 

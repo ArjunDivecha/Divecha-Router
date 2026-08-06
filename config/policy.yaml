@@ -68,17 +68,17 @@ profiles:
       You are a senior staff engineer. Focus on correctness, tests, and
       minimal diffs.
 
-  # CHEAP coding: a smart boss orchestrates a cheap DeepSeek worker via
-  # OpenRouter's subagent server tool. `smartest` currently resolves the boss
-  # to Claude Opus 5 (catalog intelligence rank 0); it tracks the frontier, so
-  # if another model tops the ranking the boss follows it. The worker is a
-  # DeepSeek V4 tier, auto-selected per request: LIGHT (V4 Flash) for routine
-  # subtasks, HEAVY (V4 Pro) when the request raises quality_floor, is large,
-  # or brings tools (see policy.infer_worker_heavy). Tiers are soft author+name
-  # matches, NOT pinned ids — they resolve live and fall back gracefully.
-  # NOTE (2026-08-05 catalog): OpenRouter ranks V4 Flash *above* V4 Pro on
-  # intelligence and it's cheaper, so the HEAVY tier is a deliberate name match
-  # to honor the "Pro for hard work" intent, not an objective ranking result.
+  # CHEAP coding: a smart boss orchestrates a DeepSeek worker via OpenRouter's
+  # subagent server tool. `smartest` resolves the boss to Claude Opus 5 today
+  # (catalog intelligence rank 0); it tracks the frontier, so the boss follows
+  # whatever tops the ranking. The worker is a DeepSeek tier, auto-selected per
+  # request: LIGHT = cheapest DeepSeek for routine subtasks; HEAVY = the
+  # SMARTEST DeepSeek (by live intelligence rank) when the request raises
+  # quality_floor, is large, or brings tools (see policy.infer_worker_heavy).
+  # Both tiers are objective — author preference + cheapest/smartest, NO pinned
+  # ids and no brittle name match. NOTE (2026-08-05 catalog): DeepSeek V4 Flash
+  # currently out-ranks V4 Pro, so HEAVY resolves to Flash today too; the
+  # instant an updated Pro ranks higher, HEAVY picks it up automatically.
   cheap_code:
     route_type: subagent
     objective: smartest
@@ -91,8 +91,8 @@ profiles:
     expected_tokens: {input: 16000, output: 3000}
     default_budget_usd: 0.50
     worker_tiers:
-      light: {prefer_authors: [deepseek], name_contains: flash, max_prompt_price_per_million: 0.20}
-      heavy: {prefer_authors: [deepseek], name_contains: pro, max_prompt_price_per_million: 1.0}
+      light: {prefer_authors: [deepseek], pick: cheapest}
+      heavy: {prefer_authors: [deepseek], pick: smartest}
     subagent_instructions: >-
       You are a focused coding worker. Implement exactly what the task
       describes, keep diffs minimal, and preserve any requested output format,

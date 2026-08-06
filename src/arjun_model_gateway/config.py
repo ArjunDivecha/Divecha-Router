@@ -68,18 +68,22 @@ class FusionSpec(BaseModel):
 
 class WorkerTier(BaseModel):
     """One subagent-worker tier — still NO pinned model id. A tier narrows the
-    live catalog by soft preference (author + a substring of the model id) plus
-    an optional price cap, and the cheapest survivor is chosen at decision time.
-    `name_contains` is a substring match (e.g. "flash"/"pro"), so it tolerates
-    version suffixes (deepseek-v4-flash-0731) and degrades gracefully to the
-    author-only pool, then to the profile's cheapest worker, if it matches
-    nothing in the current catalog."""
+    live catalog by soft preference (author, optional model-id substring, and
+    an optional price cap), then resolves a concrete worker at decision time by
+    `pick`: "cheapest" (min route price) or "smartest" (best live intelligence
+    rank). `smartest` is deliberately ranking-driven so the tier tracks the
+    frontier — when a preferred author ships a stronger model it is selected
+    automatically, no config change. `name_contains` is a substring match that
+    tolerates version suffixes (deepseek-v4-flash-0731); the tier degrades
+    gracefully to the author-only pool, then to the cheapest constraint-meeting
+    worker, if nothing matches in the current catalog."""
 
     model_config = {"extra": "forbid"}
 
     prefer_authors: list[str] = Field(default_factory=list)
     name_contains: str | None = None
     max_prompt_price_per_million: float | None = None
+    pick: Literal["cheapest", "smartest"] = "cheapest"
 
 
 class WorkerTiers(BaseModel):
