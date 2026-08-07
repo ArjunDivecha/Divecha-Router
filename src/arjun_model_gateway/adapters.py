@@ -19,7 +19,8 @@ v2 changes:
 
 INPUT FILES: none — network I/O only (api keys come from environment
 variables: OPENROUTER_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY,
-LOCAL_OPENAI_API_KEY / LOCAL_OPENAI_BASE_URL).
+LOCAL_OPENAI_API_KEY / LOCAL_OPENAI_BASE_URL, CELERIS_API_KEY /
+CELERIS_BASE_URL).
 OUTPUT FILES: none — this module performs no file I/O.
 =============================================================================
 """
@@ -403,6 +404,10 @@ def adapter_for(provider: str) -> ProviderAdapter:
     if provider == "local_openai":
         base = os.environ.get("LOCAL_OPENAI_BASE_URL", "http://127.0.0.1:11434/v1")
         return OpenAICompatibleAdapter("local_openai", base, "LOCAL_OPENAI_API_KEY")
+    if provider == "celeris":
+        # diffusion LM, OpenAI-compatible; base_url already carries the model path
+        base = os.environ.get("CELERIS_BASE_URL", "https://inference.celeris.ai/celeris-1/v1")
+        return OpenAICompatibleAdapter("celeris", base, "CELERIS_API_KEY")
     if provider == "anthropic":
         return AnthropicAdapter()
     if provider == "mock":

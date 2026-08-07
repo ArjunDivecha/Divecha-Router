@@ -198,3 +198,13 @@ profiles:
     route_type: direct
     provider: anthropic
     quality_floor: medium
+
+  # Celeris-1 (diffusion LM) via its own OpenAI-compatible endpoint. DIRECT
+  # route: the model resolves live from Celeris's /models (currently the single
+  # celeris-1), never pinned. Purpose: latency-sensitive short work
+  # (classification, extraction, query rewrite). Direct routes bypass the
+  # marketplace selector, so this is an explicit pin — call it by profile name.
+  # Pricing (2026-08): $0.20/M input, $0.70/M output. US-only API.
+  fast_celeris:
+    route_type: direct
+    provider: celeris

@@ -6,11 +6,14 @@ from pathlib import Path
 
 
 DEFAULT_ENV_FILE = Path("/Users/arjundivecha/Dropbox/AAA Backup/.env.txt")
-SAFE_KEY_PATTERN = re.compile(r"^(OPENROUTER_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY)$")
+SAFE_KEY_PATTERN = re.compile(
+    r"^(OPENROUTER_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|CELERIS_API_KEY)$"
+)
 KEY_PREFIXES = {
     "OPENROUTER_API_KEY": "sk-or-",
     "OPENAI_API_KEY": "sk-proj-",
     "ANTHROPIC_API_KEY": "sk-ant-",
+    "CELERIS_API_KEY": "ck_",
 }
 
 

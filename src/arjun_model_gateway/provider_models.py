@@ -16,6 +16,8 @@ direct routes ask each provider's own live /models API at decision time:
                 moderation ids), prefer the newest "mini"-tier, else the
                 newest chat model.
 - local_openai: GET {LOCAL_OPENAI_BASE_URL}/models; first model served.
+- celeris:      GET {CELERIS_BASE_URL}/models (auth required); first model
+                served (a single diffusion model, currently 'celeris-1').
 
 "mini"/"haiku" are TIER patterns, not version pins — when a provider ships
 a newer generation, these resolve to it automatically. Results are cached
@@ -71,6 +73,8 @@ def resolve_direct_model(provider: str) -> str:
         model = _openai_newest_chat()
     elif provider == "local_openai":
         model = _local_first()
+    elif provider == "celeris":
+        model = _celeris_first()
     else:
         raise RoutingError("unknown_direct_provider", f"no dynamic resolver for provider {provider!r}")
     _CACHE[provider] = (model, now)
@@ -131,6 +135,27 @@ def _openai_newest_chat() -> str:
     chat.sort(key=lambda m: int(m.get("created") or 0), reverse=True)
     minis = [m for m in chat if "mini" in str(m.get("id", ""))]
     return str((minis[0] if minis else chat[0])["id"])
+
+
+def _celeris_first() -> str:
+    """Celeris serves a single diffusion model; resolve it live from /models
+    rather than pinning the id (currently returns 'celeris-1')."""
+    api_key = os.environ.get("CELERIS_API_KEY")
+    if not api_key:
+        raise RoutingError("missing_api_key", "CELERIS_API_KEY is not set")
+    base = os.environ.get("CELERIS_BASE_URL", "https://inference.celeris.ai/celeris-1/v1").rstrip("/")
+    try:
+        with httpx.Client(timeout=15) as client:
+            response = client.get(
+                f"{base}/models", headers={"Authorization": f"Bearer {api_key}"}
+            )
+            response.raise_for_status()
+            data = response.json().get("data", [])
+    except httpx.HTTPError as exc:
+        raise RoutingError("provider_models_unavailable", f"celeris models API failed: {exc}")
+    if not data:
+        raise RoutingError("provider_models_unavailable", "celeris models API returned no models")
+    return str(data[0]["id"])
 
 
 def _local_first() -> str:
