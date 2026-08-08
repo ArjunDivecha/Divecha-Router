@@ -77,7 +77,7 @@ from .telemetry import (
 
 app = FastAPI(title="Arjun Model Gateway", version="2.0.0")
 
-EXTERNAL_PROVIDERS = {"openrouter", "openai", "anthropic"}
+EXTERNAL_PROVIDERS = {"openrouter", "openai", "anthropic", "celeris"}
 GENERATION_URL = "https://openrouter.ai/api/v1/generation"
 
 

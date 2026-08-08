@@ -40,6 +40,7 @@ from .catalog import (
     author_of,
     completion_price,
     is_free_variant,
+    is_supplemental,
     outputs_text,
     prompt_price,
 )
@@ -270,10 +271,13 @@ def resolve_support_models(
     constraints but ignores the quality floor — the fusion panel extends into
     it (smartest-first) when the floor pool lacks author diversity."""
     support: dict[str, Any] = {}
+    # support roles (advisor/panel/judge/worker) execute as OpenRouter model
+    # ids, so supplemental (direct-provider) models are never eligible here.
     ranked = [
         m
         for m in catalog.models()  # smartest first
         if not str(m.get("id") or "").startswith("openrouter/")
+        and not is_supplemental(m)
         and prompt_price(m) >= 0
         and completion_price(m) >= 0
     ]
@@ -411,10 +415,15 @@ def select(
 
     models = catalog.models()
     max_rank = floor_max_rank(floor, len(models))
+    # supplemental (non-OpenRouter) models compete ONLY as the outer of a
+    # simple route — they can't run OpenRouter server tools, so they are never
+    # a boss/advisor/panel/judge/worker.
+    allow_supplemental = profile.route_type == "simple"
     filtered_all = [
         model
         for model in models
-        if passes_filters(
+        if (allow_supplemental or not is_supplemental(model))
+        and passes_filters(
             model,
             require_parameters=required,
             min_context=min_context,

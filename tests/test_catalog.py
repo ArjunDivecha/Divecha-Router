@@ -25,7 +25,7 @@ from tests.conftest import FAKE_LATENCY_ORDER, FAKE_MODELS
 
 def test_ranks_come_from_sorted_fetches(tmp_path, monkeypatch):
     snapshot = tmp_path / "snapshot.json"
-    catalog = Catalog(ttl_seconds=999, snapshot_path=snapshot)
+    catalog = Catalog(ttl_seconds=999, snapshot_path=snapshot, supplemental_path=None)
     monkeypatch.setattr(catalog, "_fetch_live", lambda: (FAKE_MODELS, FAKE_LATENCY_ORDER))
     assert catalog.models()[0]["id"] == "alpha/frontier-1"
     assert catalog.intelligence_rank("alpha/frontier-1") == 0
@@ -38,12 +38,12 @@ def test_ranks_come_from_sorted_fetches(tmp_path, monkeypatch):
 
 def test_snapshot_fallback_when_fetch_fails(tmp_path, monkeypatch):
     snapshot = tmp_path / "snapshot.json"
-    live = Catalog(ttl_seconds=999, snapshot_path=snapshot)
+    live = Catalog(ttl_seconds=999, snapshot_path=snapshot, supplemental_path=None)
     monkeypatch.setattr(live, "_fetch_live", lambda: (FAKE_MODELS, FAKE_LATENCY_ORDER))
     live.models()  # writes the snapshot
 
     Catalog.reset_cache()
-    offline = Catalog(ttl_seconds=999, snapshot_path=snapshot)
+    offline = Catalog(ttl_seconds=999, snapshot_path=snapshot, supplemental_path=None)
 
     def fail():
         raise httpx.ConnectError("offline")

@@ -351,16 +351,26 @@ def choose_route(
         600.0 if profile.route_type in ("advisor", "subagent") else 300.0
     )
 
+    # a marketplace winner may be a supplemental (non-OpenRouter) model; it
+    # carries its own provider for adapter dispatch. Native models default to
+    # the profile's provider (openrouter).
+    def _prov(cand) -> str:
+        return str((cand.model or {}).get("provider") or profile.provider)
+
+    winner_provider = _prov(primary)
+    if winner_provider != profile.provider:
+        reasons.append(f"supplemental_provider={winner_provider}")
+
     max_fallbacks = profile.select.max_fallbacks
     fallbacks = [
-        {"provider": profile.provider, "model": c.model_id}
+        {"provider": _prov(c), "model": c.model_id}
         for c in selection.candidates[1 : 1 + max_fallbacks]
     ]
 
     return RouteDecision(
         routing_profile=profile_name,
         route_type=profile.route_type,
-        provider=profile.provider,
+        provider=winner_provider,
         model=primary.model_id,
         objective=objective_override,
         quality_floor=selection.quality_floor,

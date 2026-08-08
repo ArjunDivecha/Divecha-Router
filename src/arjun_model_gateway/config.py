@@ -32,6 +32,7 @@ CONFIG_DIR = ROOT / "config"
 DATA_DIR = ROOT / "data"
 REPORTS_DIR = ROOT / "reports"
 DEFAULT_POLICY_PATH = CONFIG_DIR / "policy.yaml"
+DEFAULT_SUPPLEMENTAL_PATH = CONFIG_DIR / "supplemental_catalog.yaml"
 DEFAULT_REGISTRY_PATH = DATA_DIR / "registry.json"
 DEFAULT_TELEMETRY_PATH = DATA_DIR / "telemetry.sqlite"
 
@@ -140,6 +141,43 @@ def ensure_dirs() -> None:
 def load_policy(path: Path = DEFAULT_POLICY_PATH) -> Policy:
     data = yaml.safe_load(path.read_text()) or {}
     return Policy.model_validate(data)
+
+
+def load_supplemental_models(path: Path = DEFAULT_SUPPLEMENTAL_PATH) -> list[dict]:
+    """Load NON-OpenRouter models to inject into marketplace selection.
+
+    Returns catalog-shaped dicts (per-TOKEN pricing, `supplemental=True`, a
+    `provider` for adapter dispatch, and the two percentiles used to slot the
+    model into the live intelligence/latency rankings). The `id` must be the
+    provider's own model name (what gets sent as `model` to that provider).
+
+    Missing file -> [] (OpenRouter-only, backwards compatible). A malformed
+    file raises so the problem is loud rather than silently dropping a model.
+    """
+    if path is None or not Path(path).exists():
+        return []
+    raw = yaml.safe_load(Path(path).read_text()) or {}
+    out: list[dict] = []
+    for entry in raw.get("models", []) or []:
+        out.append(
+            {
+                "id": str(entry["id"]),
+                "provider": str(entry["provider"]),
+                "supplemental": True,
+                "pricing": {
+                    "prompt": float(entry["prompt_per_million"]) / 1_000_000,
+                    "completion": float(entry["completion_per_million"]) / 1_000_000,
+                },
+                "context_length": int(entry.get("context_length") or 0),
+                "supported_parameters": list(entry.get("supported_parameters") or []),
+                "architecture": {
+                    "output_modalities": list(entry.get("output_modalities") or ["text"])
+                },
+                "_intelligence_percentile": float(entry.get("intelligence_percentile", 0.5)),
+                "_latency_percentile": float(entry.get("latency_percentile", 0.5)),
+            }
+        )
+    return out
 
 
 def validate_policy(path: Path = DEFAULT_POLICY_PATH) -> Policy:

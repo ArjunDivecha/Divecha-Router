@@ -1,0 +1,46 @@
+# =============================================================================
+# FILE: supplemental_catalog.yaml (Divecha Router v2)
+# =============================================================================
+# WHAT THIS FILE IS:
+# Non-OpenRouter models injected into the router's marketplace selection so
+# they compete on merit inside the SIMPLE-route profiles (fast / cheap /
+# structured / frontier). Models here are NOT in the OpenRouter catalog; each
+# is dispatched to its own provider adapter (see adapters.adapter_for) and is
+# eligible ONLY as the outer model of a simple route — never as a boss,
+# advisor, fusion panelist, judge, or subagent worker (those execute
+# OpenRouter server tools a direct provider can't run).
+#
+# Each entry:
+#   id                      the provider's OWN model name (sent as `model`)
+#   provider                adapter to dispatch to (must exist in adapter_for)
+#   prompt/completion_per_million   price in USD per MILLION tokens
+#   context_length          max context tokens
+#   supported_parameters    capabilities (tools, structured_outputs, ...)
+#   output_modalities       usually [text]
+#   intelligence_percentile where to slot in the live intelligence ranking
+#                           (0.0 = smartest). Gates which quality_floor it can
+#                           clear: 0.35 clears basic+medium but NOT high(0.25)
+#                           or frontier(top 8) — deliberately keeping a fast/
+#                           cheap model out of reasoning-heavy routes.
+#   latency_percentile      where to slot in the latency ranking (0.0 =
+#                           fastest) so it gets shortlisted for `fastest`
+#                           routes before it has observed timings.
+#
+# INPUT/OUTPUT: read by config.load_supplemental_models() and merged by
+# catalog.Catalog; produces no outputs itself.
+# =============================================================================
+
+models:
+  # Celeris-1: diffusion LM, OpenAI-compatible, US-only. Measured ~3.8x faster
+  # than the OpenRouter fast winner on short work (runs/*_celeris_vs_fast).
+  # Reasoning/tool-use are unverified, so the 0.35 percentile keeps it in the
+  # fast/cheap/structured lanes and out of high/frontier.
+  - id: celeris-1
+    provider: celeris
+    prompt_per_million: 0.20
+    completion_per_million: 0.70
+    context_length: 131072
+    supported_parameters: [tools, structured_outputs, response_format]
+    output_modalities: [text]
+    intelligence_percentile: 0.35
+    latency_percentile: 0.0

@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,7 +44,7 @@ from typing import Any
 
 import httpx
 
-from .config import DATA_DIR, ensure_dirs
+from .config import DATA_DIR, DEFAULT_SUPPLEMENTAL_PATH, ensure_dirs
 
 OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
 DEFAULT_CATALOG_SNAPSHOT = DATA_DIR / "catalog_snapshot.json"
@@ -68,9 +69,12 @@ class Catalog:
         self,
         ttl_seconds: int | None = None,
         snapshot_path: Path = DEFAULT_CATALOG_SNAPSHOT,
+        supplemental_path: Path | None = DEFAULT_SUPPLEMENTAL_PATH,
     ) -> None:
         self.ttl_seconds = ttl_seconds or int(os.environ.get("AMG_CATALOG_TTL_SECONDS", "900"))
         self.snapshot_path = snapshot_path
+        # non-OpenRouter models merged into the rankings; None disables (tests)
+        self.supplemental_path = supplemental_path
 
     # -- loading ------------------------------------------------------------
 
@@ -93,10 +97,43 @@ class Catalog:
             intelligence, latency_ids, as_of = self._read_snapshot()
             cls._source = "snapshot_fallback"
             cls._as_of = as_of
+        intelligence, latency_ids = self._merge_supplemental(intelligence, latency_ids)
         cls._models = intelligence
         cls._intelligence_rank = {m["id"]: i for i, m in enumerate(intelligence)}
         cls._latency_rank = {mid: i for i, mid in enumerate(latency_ids)}
         cls._loaded_at = now
+
+    def _merge_supplemental(
+        self, intelligence: list[dict[str, Any]], latency_ids: list[str]
+    ) -> tuple[list[dict[str, Any]], list[str]]:
+        """Splice non-OpenRouter models into the intelligence + latency
+        rankings at their declared percentiles. Resilient: a missing file
+        merges nothing; a malformed file warns and leaves the OpenRouter
+        catalog intact rather than taking the whole router down."""
+        if self.supplemental_path is None:
+            return intelligence, latency_ids
+        from .config import load_supplemental_models
+
+        try:
+            supp = load_supplemental_models(self.supplemental_path)
+        except Exception as exc:  # noqa: BLE001 — never let an add-on break routing
+            print(f"[catalog] supplemental catalog ignored (load failed): {exc}", file=sys.stderr)
+            return intelligence, latency_ids
+        if not supp:
+            return intelligence, latency_ids
+
+        base_n = len(intelligence)
+        intelligence = list(intelligence)
+        for offset, m in enumerate(sorted(supp, key=lambda x: x["_intelligence_percentile"])):
+            idx = min(base_n, max(0, round(m["_intelligence_percentile"] * base_n))) + offset
+            intelligence.insert(idx, m)
+
+        lat_n = len(latency_ids)
+        latency_ids = list(latency_ids)
+        for offset, m in enumerate(sorted(supp, key=lambda x: x["_latency_percentile"])):
+            idx = min(lat_n, max(0, round(m["_latency_percentile"] * lat_n))) + offset
+            latency_ids.insert(idx, m["id"])
+        return intelligence, latency_ids
 
     def _fetch_live(self) -> tuple[list[dict[str, Any]], list[str]]:
         with httpx.Client(timeout=30) as client:
@@ -211,3 +248,10 @@ def outputs_text(model: dict[str, Any]) -> bool:
 
 def author_of(model_id: str) -> str:
     return model_id.split("/", 1)[0] if "/" in model_id else model_id
+
+
+def is_supplemental(model: dict[str, Any]) -> bool:
+    """True for non-OpenRouter models injected via the supplemental catalog.
+    Such models are eligible only as the outer of a SIMPLE route and are
+    dispatched to their own provider adapter (model['provider'])."""
+    return bool(model.get("supplemental"))
