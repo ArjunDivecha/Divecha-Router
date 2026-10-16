@@ -15,3 +15,6 @@ reports/
 *.pem
 *credential*
 nohup.out
+
+# PKS agent-context exports (session transcripts) — keep out of the public repo
+.pks/
